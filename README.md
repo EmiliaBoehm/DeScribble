@@ -1,5 +1,7 @@
-# Repo for Capstone Project
+# DeScribble
 
+Use Machine Learning (ML) on handwritten text to draw inferences about
+the person who wrote it.
 
 ---
 
