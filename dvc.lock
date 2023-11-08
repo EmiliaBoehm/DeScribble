@@ -1,0 +1,18 @@
+schema: '2.0'
+stages:
+  preprocess:
+    cmd: python src/wrap.py data/raw-sentence.txt data/wrapped-sentence.txt
+    deps:
+    - path: data/raw-sentence.txt
+      hash: md5
+      md5: 8673b2581170e594c1dbe6dfeb52c3f6
+      size: 50
+    - path: src/wrap.py
+      hash: md5
+      md5: 03b1c721d8004709a6328b591af22a72
+      size: 1346
+    outs:
+    - path: data/wrapped-sentence.txt
+      hash: md5
+      md5: 2ee23ead1f0471ddbb7ece2a4d05e861
+      size: 93
