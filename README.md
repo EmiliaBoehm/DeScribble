@@ -9,10 +9,11 @@ the person who wrote it.
 
 ## Requirements and Environment
 
-Requirements:
-- pyenv with Python: 3.11.3
+### DVC
 
-Environment: 
+This project uses [DVC](https://dvc.org/).
+
+### Python Environment
 
 For installing the virtual environment you can either use the Makefile and run `make setup` or install it manually with the following commands: 
 
