@@ -1,0 +1,5 @@
+outs:
+- md5: 1852ca4da9bd938d808e840f619612cf
+  size: 225099
+  hash: md5
+  path: ocr-example.jpg
