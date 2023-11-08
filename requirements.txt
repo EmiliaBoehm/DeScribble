@@ -4,6 +4,9 @@
 #
 # Requirements without version specifiers always load the latest version
 #
+# -- DVC with Google Drive extension
+dvc[gdrive]
+
 # -- Jupyter:
 jupyterlab
 ipywidgets

@@ -11,7 +11,8 @@ the person who wrote it.
 
 ### DVC
 
-This project uses [DVC](https://dvc.org/).
+This project uses [DVC](https://dvc.org/). It is included as a
+requirement in the `requirements.txt` file.
 
 ### Python Environment
 
