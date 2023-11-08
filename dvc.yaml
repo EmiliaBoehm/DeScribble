@@ -1,0 +1,8 @@
+stages:
+  preprocess:
+    cmd: python src/wrap.py data/raw-sentence.txt data/wrapped-sentence.txt
+    deps:
+    - data/raw-sentence.txt
+    - src/wrap.py
+    outs:
+    - data/wrapped-sentence.txt
