@@ -3,24 +3,6 @@
 
 ---
 
-## Set up a Kanban board
-
-
-
-### Optional: Add workflows
-
-Workflows can help you keep your kanban board automatically on track. 
-
-Select the project created in the steps above.  
-
-Click on the 3 dots to the far right of the board (...)
-
-Select workflow as the first option. 
-
-Activate the ones you feel necessary to your project
-
-Go back to your project repository (fraud detection))
-
 ## Requirements and Environment
 
 Requirements:
