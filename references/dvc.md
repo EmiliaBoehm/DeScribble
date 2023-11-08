@@ -45,4 +45,26 @@ dvc data status --unchanged
 This command is supposed to be similar to `git status`. See `dvc data
 status --help` for more useful options.
 
+## Creating Pipelines 
+
+Each step in the pipeline is a "stage". A stage basically consists of
+a command to run and some further specifications. All stages are
+defined in a single file, called `dvc.yaml`. There are helper
+functions to add stages, but editing the yaml file directly allows
+much more complexity. See [the
+reference](https://dvc.org/doc/user-guide/project-structure/dvcyaml-files)
+for the details.
+
+In a pipeline, you can pass data through several processing steps. For
+example, you have one raw input image, pass it through a python script
+which normalizes it, and store it as normalized image which can then
+be fed to the ML training algorithm. 
+
+DVC automatically adds the resulting pipeline data to its repository.
+So do not add the data with git (but DVC will warn you if you
+accidentally track a file which DVC wants to track, too). It is
+possible to specify a remote to push the results into, if the default
+remote should not be used [see the
+documentation](https://dvc.org/doc/user-guide/project-structure/dvcyaml-files#output-subfields).
+
 
