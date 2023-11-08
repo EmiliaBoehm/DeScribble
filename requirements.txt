@@ -1,11 +1,23 @@
-altair==5.0.1
-jupyterlab==3.6.3
-ipywidgets==8.0.6
-matplotlib==3.7.1
-seaborn==0.12.2
-numpy==1.24.3
-pandas==2.0.1
-jupyterlab-dash==0.1.0a3
-scikit-learn==1.2.2
-statsmodels==0.13.5
-pytest==7.3.1
+#
+# Project requirements
+#
+#
+# Requirements without version specifiers always load the latest version
+#
+# -- Jupyter:
+jupyterlab
+ipywidgets
+jupyterlab-dash
+
+# -- Pandas & Scikit
+numpy
+pandas
+scikit-learn
+
+# --- Plotting libraries
+matplotlib
+seaborn
+
+# Local Variables:
+# mode: conf-unix
+# End:
