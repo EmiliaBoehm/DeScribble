@@ -3,9 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# CSV files
-data/
-
 # Private
 privateDir/
 private/
