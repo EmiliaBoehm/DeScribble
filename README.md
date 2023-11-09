@@ -1,14 +1,20 @@
-# Repo for Capstone Project
+# DeScribble
 
+Use Machine Learning (ML) on handwritten text to draw inferences about
+the person who wrote it.
 
 ---
 
+## Model used
+
 ## Requirements and Environment
 
-Requirements:
-- pyenv with Python: 3.11.3
+### DVC
 
-Environment: 
+This project uses [DVC](https://dvc.org/). It is included as a
+requirement in the `requirements.txt` file.
+
+### Python Environment
 
 For installing the virtual environment you can either use the Makefile and run `make setup` or install it manually with the following commands: 
 
