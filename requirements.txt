@@ -21,6 +21,12 @@ scikit-learn
 matplotlib
 seaborn
 
+# --- Neural Networks
+transformers
+torch
+torchvision
+torchaudio
+
 # Local Variables:
 # mode: conf-unix
 # End:
