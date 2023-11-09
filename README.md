@@ -16,7 +16,7 @@ requirement in the `requirements.txt` file.
 
 ### Python Environment
 
-For installing the virtual environment you can either use the Makefile and run `make setup` or install it manually with the following commands: 
+For installing the virtual environment you can install it manually with the following commands: 
 
 ```Bash
 pyenv local 3.11.3
