@@ -71,7 +71,7 @@ def main() -> None:
     model = get_model("microsoft/trocr-base-handwritten", "simplemodel")
     processor = get_processor("microsoft/trocr-base-handwritten", "simplemodel")
     tensor = format_image(image, processor)
-    return predict(tensor, model, processor)
+    print(predict(tensor, model, processor))
 
 
 if __name__ == "__main__":
