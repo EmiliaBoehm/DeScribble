@@ -60,7 +60,7 @@ def get_ArgumentParser() -> argparse.ArgumentParser:
         description="Scan the image and print the results"
     )
     parser.add_argument("inputfile")
-#parser.add_argument("outputfile")
+# parser.add_argument("outputfile")
     return parser
 
 
