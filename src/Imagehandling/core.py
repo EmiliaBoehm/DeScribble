@@ -7,7 +7,7 @@ from typing import Sequence, Union
 from copy import copy, deepcopy
 
 class ColorState:
-    RGB: dict  = {}
+    RGB: dict = {}
     GRAY: dict = {'cmap': 'gray', 'vmin': 0, 'vmax': 255}
 
 
@@ -31,6 +31,7 @@ class Img:
 
     def write(self, path: str) -> None:
         """Store img in PATH."""
+        print(f"Writing to {path}")
         cv2.imwrite(path, self.img)
 
     def _update(self, new_img) -> Img:
