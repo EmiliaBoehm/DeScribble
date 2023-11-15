@@ -7,16 +7,17 @@ from typing import Sequence, Union
 from copy import copy, deepcopy
 
 class ColorState:
-    RGB = {}
-    GRAY = {'cmap': 'gray', 'vmin': 0, 'vmax': 255}
+    RGB: dict  = {}
+    GRAY: dict = {'cmap': 'gray', 'vmin': 0, 'vmax': 255}
+
 
 class Img:
-    img:             cv2.Mat
-    contours:        Union[Sequence[cv2.Mat], None]
-    src_path:        str
-    original:        cv2.Mat
+    img: cv2.Mat
+    contours: Union[Sequence[cv2.Mat], None]
+    src_path: str
+    original: cv2.Mat
     transformations: list[cv2.Mat]
-    track:           bool
+    track: bool
 
     CONTOURSCOLOR = (255, 0, 0)
 
@@ -38,14 +39,14 @@ class Img:
             self.transformations.append(self.img)
         self.img = new_img
         return self
-    
+
     def _scaled_shape(self, scale_w: float, scale_h: float) -> tuple:
         """Get scaled dimensions of the image."""
         w, h = self.img.shape
-        return (round(w*scale_w), round(h*scale_h))
-        
-    def to_contours(self, use_original = True) -> Img:
-        """Return a copy of the original image with contours.        
+        return (round(w * scale_w), round(h * scale_h))
+
+    def to_contours(self, use_original=True) -> Img:
+        """Return a copy of the original image with contours.
         Draw contours on the original image as background and store it as the current image. If
         use_original is False, use the current image instead.
         Note that this also change the colorspace to RGB."""
@@ -60,15 +61,15 @@ class Img:
             new_self.img = img
         return new_self
 
-    def _prepare_plt(self, **kwargs) -> None:
+    def _prepare_plt(self, img, **kwargs) -> None:
         """Prepare image for 'plotting' with matplotlib."""
-        plt.imshow(self.img, **kwargs)
+        plt.imshow(img, **kwargs)
         plt.xticks([])
         plt.yticks([])
-    
+
     def show(self, color_state=ColorState.GRAY, **kwargs) -> Img:
         """Print image with matplotlib (for Jupyter notebooks)."""
-        self._prepare_plt(**(kwargs | color_state))
+        self._prepare_plt(self.img, **(kwargs | color_state))
         plt.show()
         return self
 
@@ -79,7 +80,7 @@ class Img:
         cols = 3
         rows = (n // cols) + 1
         for i in range(len(imgs)):
-            plt.subplot(rows, cols, i+1)
+            plt.subplot(rows, cols, i + 1)
             self._prepare_plt(imgs[i], **kwargs)
             plt.xticks([])
             plt.yticks([])
