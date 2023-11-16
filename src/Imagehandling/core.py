@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from typing import Sequence, Union
 from copy import copy, deepcopy
 
+
 class ColorState:
     RGB: dict = {}
     GRAY: dict = {'cmap': 'gray', 'vmin': 0, 'vmax': 255}
