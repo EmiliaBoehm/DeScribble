@@ -137,3 +137,4 @@ dmypy.json
 
 # vscode Stuff
 .vscode
+/notebooks/local_checkpoints/
