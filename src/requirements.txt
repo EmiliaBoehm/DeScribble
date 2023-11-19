@@ -1,0 +1,10 @@
+# -- Dependencies for segmenter.py
+#
+opencv-python
+pillow
+scikit-image
+numpy
+
+# Local Variables:
+# mode: conf-unix
+# End:
