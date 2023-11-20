@@ -37,7 +37,7 @@ def activate_logger() -> logging.Logger:
     """Activate logging."""
     name = __name__ if __name__ != '__main__' else sys.argv[0]
     log = logging.getLogger(__name__)
-    formatter = logging.Formatter("%(asctime)s - %(name)s: %(levelname)s- %(funcName)s - %(message)s")
+    formatter = logging.Formatter("%(asctime)s - %(name)s: %(levelname)s- %(funcName)s() - %(message)s")
     fh = logging.FileHandler(f"{name}.log", mode='w')
     fh.setFormatter(formatter)
     ch = logging.StreamHandler()
@@ -61,12 +61,22 @@ if 'log' not in globals():
 
 
 def image_is_a_mask(img: ImageArray) -> bool:
-    """Return True if image is a boolean mask."""
+    """Return True if image `img` is a boolean mask."""
     return (img.ndim == 2) and (img.dtype == bool)
 
 
 def read_image(file: PathOrStr) -> ImageArray:
-    """Read an image at FILE."""
+    """
+    Read the image at `file`.
+
+    Args:
+
+       file: String or Path object
+
+    Returns:
+
+       RGB ImageArray
+    """
     src_path = Path(file)
     # opencv2 honors the image rotation
     # TODO Try pillow instead
@@ -77,7 +87,9 @@ def read_image(file: PathOrStr) -> ImageArray:
 
 
 def write_image(file: PathOrStr, img: ImageArray) -> None:
-    """Store the image (RGB or binary mask)."""
+    """
+    Store the image (either RGB or binary mask).
+    """
     dest = Path(file)
     imgtype = " "
     if image_is_a_mask(img):
@@ -88,7 +100,10 @@ def write_image(file: PathOrStr, img: ImageArray) -> None:
 
 
 def dimensions2d(img: ImageArray) -> Tuple[int, int]:
-    """Return the 2d dimensions of the original image (w,h)."""
+    """
+    Return the 2d dimensions of the original image `img` (w,h),
+    regardless of its dimensions.
+    """
     h, w = img.shape[:2]
     return (w, h)
 
@@ -98,8 +113,19 @@ def dimensions2d(img: ImageArray) -> Tuple[int, int]:
 
 
 def mask2rgb(mask: ImageArray, invert: bool = False) -> ImageArray:
-    """Convert MASK to a b/w RGB image.
-    Invert it if INVERT is True."""
+    """
+    Convert binary image `mask` to a b/w RGB image with three channels.
+
+    Args:
+
+        mask: ImageArray of the shape (h,w)
+        invert: If True, invert the image colors.
+
+    Returns:
+
+        An ImageArray of shape (H,W,3)
+
+    """
     if invert:
         mask = np.invert(mask)
     # Stack the mask as RGB Layers: True -> (True, True True)
@@ -108,8 +134,10 @@ def mask2rgb(mask: ImageArray, invert: bool = False) -> ImageArray:
     return new_img.astype('uint8') * 255
 
 
-def binarize(img: ImageArray)-> ImageArray:
-    """Turn RGB IMG into a binary image using Sauvola threshold algorithm."""
+def binarize(img: ImageArray) -> ImageArray:
+    """
+    Turn RGB image `img` into a binary image using Sauvola threshold algorithm.
+    """
     if image_is_a_mask(img):
         log.error("Asked to convert image into a mask, but it is already one.")
         return img
@@ -120,7 +148,9 @@ def binarize(img: ImageArray)-> ImageArray:
 
 
 def create_binary_mask(img, radius: int = 20) -> ImageArray:
-    """Transform IMG using grayscale, binarizing, dilation."""
+    """
+    Transform `img`  using grayscale, binarizing, dilation.
+    """
     img = isotropic_dilation(binarize(img), radius=radius)  # 40
     return img
 
@@ -139,6 +169,7 @@ class Segmenter:
     boxes of the binarized image and builds clusters of all boxes who are
     within a certain distance to each other. The results are stored in the
     object's instance as attributes:
+
           word_boxes - A list of bounding boxes for 'words'
                        (contours of a certain size).
           line_boxes - A list of bounding boxes for 'lines'
@@ -158,8 +189,12 @@ class Segmenter:
                  transformer: Optional[Callable] = None,
                  cluster_padding: Tuple[int, int] = (150, 150)) -> None:
         """
-        Create a binary mask using TRANSFORMER and find boxes, storing them in the object.
-        TRANSFORMER is a function accepting an ImageArray as its sole argument.
+        Create a binary mask using `transformer` and find boxes, storing them in the object.
+
+        Args:
+
+          transformer: A function accepting an ImageArray as its sole argument. The fucntion must
+                       also return an ImageArray (either binary or RGB).
         """
         if transformer is None:
             transformer = create_binary_mask
@@ -173,8 +208,13 @@ class Segmenter:
         self.find_line_boxes(cluster_padding)
 
     def _overlap(self, box1: BBox, box2: BBox) -> bool:
-        """Check if BOX1 and BOX2 overlap.
-        Boxes are scikit image regions (y_top,x_top,y_bot,y_bot)."""
+        """
+        Check if `box1` and `box2` overlap.
+
+        Args:
+
+           box1, box2: boxes (y,x,y,x)
+        """
         y1_min, x1_min, y1_max, x1_max = box1
         y2_min, x2_min, y2_max, x2_max = box2
         # No overlap if area = 0
@@ -190,7 +230,20 @@ class Segmenter:
         return True
 
     def _pad_box(self, box: BBox, dist: Tuple[int, int]) -> BBox:
-        """Return a box padded by dist and dist."""
+        """
+        Return a box padded by dist and dist. Clip the resulting
+        box at the image borders, if necessary.
+
+        Args:
+
+            box: box (y,x,y,x)
+            dist: tuple (x-pad, y-pad)
+
+        Returns:
+
+            padded box
+
+        """
         x_dist, y_dist = dist
         y_min, x_min, y_max, x_max = box
         w, h = dimensions2d(self.img)
@@ -205,7 +258,16 @@ class Segmenter:
         return [cand for cand in candidates if self._overlap(padded_box, cand)]
 
     def _bounding_box(self, boxes: list[BBox]) -> BBox:
-        """Return the box bounding all BOXES."""
+        """
+        Return the box bounding all `boxes`.
+
+        Args:
+            boxes: list of boxes (y,x,y,x)
+
+        Returns:
+
+           box surrounding all `boxes`.
+        """
         y_min = min([b[Y_MIN] for b in boxes])
         x_min = min([b[X_MIN] for b in boxes])
         y_max = max([b[Y_MAX] for b in boxes])
@@ -216,8 +278,19 @@ class Segmenter:
                         seed: BBox,
                         candidates: list[BBox],
                         dist: Tuple[int, int]) -> list[BBox]:
-        """Starting from SEED, return all boxes in CANDIDATES which overlap
-        with the padding box around SEED defined by DIST."""
+        """
+        Starting from `seed`, return all boxes in `candidates` which overlap
+        with the padding box around `seed` defined by `dist`.
+
+        Args:
+            seed:   Box (y,x,y,x)
+            candidates: list of boxes
+            dist:  tuple (x-pad, y-pad)
+
+        Returns:
+
+            List of boxes
+        """
         if not seed:
             return []
         if not candidates:
@@ -231,7 +304,11 @@ class Segmenter:
         return list(set(res))
 
     def find_word_boxes(self) -> None:
-        """Find bounding boxes on the object's img."""
+        """
+        Find bounding boxes on the object's img.
+
+        Store the result in `self.word_boxes`.
+        """
         log.info("Looking for word boxes")
         x_dim, y_dim = dimensions2d(self.img)
         # Find regions with 1s
@@ -259,8 +336,10 @@ class Segmenter:
     def find_line_boxes(self,
                         padding: Tuple[int, int] = (150, 150),
                         boxes: Optional[list[BBox]] = None) -> None:
-        """Find clusters where BOXES all overlap within PADDING distance.
-        Store the result in self.line_boxes."""
+        """
+        Find clusters where `boxes` all overlap within `padding` distance.
+        Store the result in `self.line_boxes`.
+        """
         log.info("Looking for line boxes")
         if boxes is None:
             boxes = self.word_boxes
@@ -296,13 +375,20 @@ class LineSegmenter(Segmenter):
 
 # -----------------------------------------------------------
 class ImageWorker:
+    """
+    'Work' with image boxes by drawing them on an image or storing them as slices.
+
+    """
 
     img: ImageArray
 
     def __init__(self, img: ImageArray, invert=True) -> None:
-        """Load IMG in order to work with it.
-        If IMG is a binary mask, automatically convert it to b/w RGB.
-        Invert the mask unless invert is False."""
+        """
+        Load `img` in order to work with it.
+
+        If `img` is a binary mask, automatically convert it to b/w RGB.
+        Invert the mask unless `invert` is False.
+        """
         self.img = img.copy()
         if self.img.ndim == 2:
             self.img = mask2rgb(self.img, invert)
@@ -314,33 +400,68 @@ class ImageWorker:
 
     def foreach_box(self, boxes: list[BBox], fn: Callable,
                     with_index=False) -> Any:
-        """Call fn for each box, accumulating the results.
-        FN must have the the signature fn(box) or, if
-        WITH_INDEX is set to True, fn(box, i)"""
+        """
+        Call `fn` for each box, accumulating the results.
+
+        Function `fn` must have the the signature `fn(box)` or, if
+        WITH_INDEX is set to True, `fn(box, i)`.
+        """
         if with_index:
             return [fn(box, i) for i, box in enumerate(boxes, 1)]
         else:
             return [fn(box) for box in boxes]
 
     def get_slice(self, box: BBox) -> ImageArray:
-        """Get the image slice bounded by BOX from the original image."""
+        """
+        Get the image slice bounded by `box` from the original image.
+
+        Args:
+
+            box: tuple (y,x,y,x)
+
+        Returns:
+
+            ImageArray of shape (H,W,3)
+        """
         y_min, x_min, y_max, x_max = box
         return self.img[y_min:y_max, x_min:x_max]
 
     def boxes_as_images(self, boxes: list[BBox]) -> list[ImageArray]:
-        """Return slices of the image defined by BOXES."""
+        """
+        Return slices of the image defined by `boxes`.
+
+        Args:
+
+            boxes: list of boxes (y,x,y,x)
+
+        Returns:
+
+            Lists of ImageArrays of shape (H,W,3)
+        """
         return self.foreach_box(boxes, self.get_slice)
 
     def draw_rectangle(self, box: BBox, color: Color) -> None:
-        """Draw a rectangle around BOX on the img."""
+        """
+        Draw a rectangle around BOX on the img.
+
+         Args:
+
+            box:  tuple (y,x,y,x)
+            color: RGB tuple
+        """
         start = (box[Y_MIN], box[X_MIN])
         end = (box[Y_MAX], box[X_MAX])
         rr, cc = rectangle_perimeter(start, end)
-        # TODO ValueError: Color shape (3) must match last image dimension ({image.shape[-1]}).
         set_color(self.img, (rr, cc), color)
 
     def draw_box(self, box: BBox, color: Color) -> None:
-        """Fill BOX with COLOR."""
+        """Fill BOX with COLOR.
+
+        Args:
+
+            box:  tuple (y,x,y,x)
+            color: RGB tuple
+        """
         start = (box[Y_MIN], box[X_MIN])
         end = (box[Y_MAX], box[X_MAX])
         rr, cc = rectangle(start, end)
@@ -348,7 +469,13 @@ class ImageWorker:
 
     def draw_boxes(self, boxes: list[BBox],
                    color: Color = (255, 0, 0)) -> None:
-        """Draw filled BOXES."""
+        """Draw filled BOXES.
+
+        Args:
+
+            boxes: list of boxes (y,x,y,x)
+            color: RGB tuple
+        """
         def color_box(box):
             self.draw_box(box, (255, 0, 0))
         self.foreach_box(boxes, color_box)
@@ -414,6 +541,7 @@ class ImageWorker:
 
 # -----------------------------------------------------------
 # Example use:
+
 
 TESTBILD_BW = '/home/jv/Bilder/022_bw.jpg'
 TESTBILD = '/home/jv/Bilder/022.jpg'
