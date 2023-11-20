@@ -8,7 +8,6 @@ from PIL import Image, ImageShow
 #from matplotlib import pyplot as plt
 #import matplotlib.patches as mpatches
 from skimage.io import imsave
-from skimage.util import img_as_ubyte
 from skimage.color import rgb2gray
 from skimage.filters import threshold_sauvola
 from skimage.morphology import isotropic_dilation
@@ -61,6 +60,11 @@ if 'log' not in globals():
 # Image convenience Functions
 
 
+def image_is_a_mask(img: ImageArray) -> bool:
+    """Return True if image is a boolean mask."""
+    return (img.ndim == 2) and (img.dtype == bool)
+
+
 def read_image(file: PathOrStr) -> ImageArray:
     """Read an image at FILE."""
     src_path = Path(file)
@@ -72,12 +76,12 @@ def read_image(file: PathOrStr) -> ImageArray:
     return img
 
 
-def write_image(file: PathOrStr, img) -> None:
+def write_image(file: PathOrStr, img: ImageArray) -> None:
     """Store the image (RGB or binary mask)."""
     dest = Path(file)
     imgtype = " "
-    if img.dtype == bool:
-        img = img_as_ubyte(img, force_copy=True)
+    if image_is_a_mask(img):
+        img = mask2rgb(img.copy())
         imgtype = " binary "
     log.info(f"Storing{imgtype}image into {dest}")
     imsave(f"{dest}", img, check_contrast=False)
@@ -90,17 +94,36 @@ def dimensions2d(img: ImageArray) -> Tuple[int, int]:
 
 
 # -----------------------------------------------------------
-# The actual transformation
+# Binary Masks
+
+
+def mask2rgb(mask: ImageArray, invert: bool = False) -> ImageArray:
+    """Convert MASK to a b/w RGB image.
+    Invert it if INVERT is True."""
+    if invert:
+        mask = np.invert(mask)
+    # Stack the mask as RGB Layers: True -> (True, True True)
+    new_img = np.stack((mask, mask, mask), axis=2)
+    # Converting to uint returns 0 or 1; then multiply by 255
+    return new_img.astype('uint8') * 255
+
+
+def binarize(img: ImageArray)-> ImageArray:
+    """Turn RGB IMG into a binary image using Sauvola threshold algorithm."""
+    if image_is_a_mask(img):
+        log.error("Asked to convert image into a mask, but it is already one.")
+        return img
+    log.info("Creating binary mask")
+    img = rgb2gray(img)
+    thresh = threshold_sauvola(img, window_size=101)
+    return (img <= thresh)
 
 
 def create_binary_mask(img, radius: int = 20) -> ImageArray:
     """Transform IMG using grayscale, binarizing, dilation."""
-    log.info("Creating binary mask")
-    img = rgb2gray(img)
-    thresh = threshold_sauvola(img, window_size=101)
-    img = img <= thresh
-    img = isotropic_dilation(img, radius=radius)  # 40
+    img = isotropic_dilation(binarize(img), radius=radius)  # 40
     return img
+
 
 # -----------------------------------------------------------
 # Segmenter object:
@@ -112,17 +135,18 @@ def create_binary_mask(img, radius: int = 20) -> ImageArray:
 
 class Segmenter:
     """
-    Initialized with an image, the object transforms it, finds bounding boxes of the binarized image
-    and builds clusters of all boxes who are within a certain distance to each other.
+    Initialized with an image, the object transforms it, finds bounding
+    boxes of the binarized image and builds clusters of all boxes who are
+    within a certain distance to each other. The results are stored in the
+    object's instance as attributes:
+          word_boxes - A list of bounding boxes for 'words'
+                       (contours of a certain size).
+          line_boxes - A list of bounding boxes for 'lines'
+                       (bounding boxes of clusters of words)
 
-    Two results are stored in the object's instance as attributes:
-
-    word_boxes - A list of bounding boxes for 'words' (contours of a certain size).
-    line_boxes - A list of bounding boxes for 'lines' (bounding boxes of clusters of words)
-
-    Note that a 'bounding box', here, is defined as (y_min, x_min, y_max, x_max), inverting the
-    usual order of x and y. This is the way scikit image uses it (calling it then 'rows' and 'columns'),
-    and we adopt this use.
+    Note that a 'bounding box', here, is defined as
+    (y_min, x_min, y_max, x_max), inverting theusual order of x and y.
+    This is the way scikit image uses it (calling y 'rows' and x 'columns').
     """
 
     img: ImageArray
@@ -140,6 +164,9 @@ class Segmenter:
         if transformer is None:
             transformer = create_binary_mask
         self.img = transformer(img)
+        if self.img is None:
+            log.fatal("Could not get a binary mask, canceling.")
+            sys.exit(1)
         self.word_boxes = []
         self.line_boxes = []
         self.find_word_boxes()
@@ -252,8 +279,8 @@ class WordSegmenter(Segmenter):
 
     def __init__(self, img: ImageArray) -> None:
         """Initialize a segmenter using a specialized binary mask for word.."""
-        def my_transformer(img):
-            create_binary_mask(img, radius=20)
+        def my_transformer(img) -> ImageArray:
+            return create_binary_mask(img, radius=20)
         super().__init__(img, my_transformer)
 
 
@@ -262,8 +289,8 @@ class LineSegmenter(Segmenter):
 
     def __init__(self, img: ImageArray) -> None:
         """Initialize a segmenter using a specialized binary mask for lines."""
-        def my_transformer(img):
-            create_binary_mask(img, radius=40)
+        def my_transformer(img) -> ImageArray:
+            return create_binary_mask(img, radius=40)
         super().__init__(img, my_transformer, (180, 180))
 
 
@@ -272,8 +299,14 @@ class ImageWorker:
 
     img: ImageArray
 
-    def __init__(self, img: ImageArray) -> None:
+    def __init__(self, img: ImageArray, invert=True) -> None:
+        """Load IMG in order to work with it.
+        If IMG is a binary mask, automatically convert it to b/w RGB.
+        Invert the mask unless invert is False."""
         self.img = img.copy()
+        if self.img.ndim == 2:
+            self.img = mask2rgb(self.img, invert)
+            log.info("Transformed binary image to RGB")
 
     def write(self, file: PathOrStr) -> None:
         """Store the image."""
@@ -285,7 +318,7 @@ class ImageWorker:
         FN must have the the signature fn(box) or, if
         WITH_INDEX is set to True, fn(box, i)"""
         if with_index:
-            return [fn(box, i) for i, box in enumerate(boxes)]
+            return [fn(box, i) for i, box in enumerate(boxes, 1)]
         else:
             return [fn(box) for box in boxes]
 
@@ -303,6 +336,7 @@ class ImageWorker:
         start = (box[Y_MIN], box[X_MIN])
         end = (box[Y_MAX], box[X_MAX])
         rr, cc = rectangle_perimeter(start, end)
+        # TODO ValueError: Color shape (3) must match last image dimension ({image.shape[-1]}).
         set_color(self.img, (rr, cc), color)
 
     def draw_box(self, box: BBox, color: Color) -> None:
@@ -327,7 +361,13 @@ class ImageWorker:
         self.foreach_box(boxes, color_rectangle)
 
     def write_box(self, box: BBox, filename: PathOrStr):
-        """Store content of BOX in FILENAME."""
+        """Store content of BOX in FILENAME.
+
+        Args:
+
+              box: Tuple (y,x,y,x)
+              filename: Full path to the file, including suffix.
+        """
         box_for_output = (box[X_MIN], box[Y_MIN],
                           box[X_MAX], box[Y_MAX])
         dest = Path(filename)
@@ -335,10 +375,31 @@ class ImageWorker:
         imsave(f"{dest}", self.get_slice(box), check_contrast=False)
 
     def write_boxes(self, boxes: list[BBox],
-                    filename: PathOrStr) -> None:
-        """Store all BOXES in FILENAME, appending a number."""
-        path = Path(filename)
+                    filepattern: PathOrStr) -> None:
+        """Store all BOXES in FILEPATTERN with index appended.
+
+        Args:
+
+              boxes: List of boxes (y,x,y,x)
+              filename: Full path pattern for generating the filenames.
+
+        Example:
+
+              `worker.write_boxes(boxes, '../src/images/lines.png')`
+                 will write the boxes in the files:
+                              `../src/images/lines-001.png`
+                              `../src/images/lines-002.png`
+                              ....
+        """
+        path = Path(filepattern)
         basename = path.stem
+        if not basename:
+            log.fatal("Filename missing")
+            sys.exit(0)
+
+        if not path.parent.exists():
+            log.info(f"Creating non-existing path {path.parent} on the fly")
+            path.parent.mkdir(parents=True)
 
         def write_indexed_box(box, i):
             self.write_box(box, path.with_stem(f"{basename}_{i:03}"))
@@ -354,11 +415,27 @@ class ImageWorker:
 # -----------------------------------------------------------
 # Example use:
 
+TESTBILD_BW = '/home/jv/Bilder/022_bw.jpg'
+TESTBILD = '/home/jv/Bilder/022.jpg'
+
+
+def example_test():
+    img = read_image(TESTBILD)
+    wseg = WordSegmenter(img)
+    lseg = LineSegmenter(img)
+    # Draw lines on the mask!
+    wworker = ImageWorker(wseg.img)
+    wworker.draw_rectangles(wseg.word_boxes)
+    lworker = ImageWorker(lseg.img)
+    lworker.draw_rectangles(lseg.line_boxes)
+    wworker.show()
+    lworker.show()
+
 
 def example_use():
     """Example usage."""
-    input_img = Path('/home/jv/Bilder/022.jpg')
-    output_path = Path('/home/jv/Bilder/splittest/')
+    input_img = Path(TESTBILD_BW)
+    output_path = Path('/home/jv/Bilder/splittest2/')
     img = read_image(input_img)
     seg = Segmenter(img)
 
