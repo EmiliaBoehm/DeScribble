@@ -93,13 +93,13 @@ def dimensions2d(img: ImageArray) -> Tuple[int, int]:
 # The actual transformation
 
 
-def create_binary_mask(img) -> ImageArray:
+def create_binary_mask(img, radius: int = 20) -> ImageArray:
     """Transform IMG using grayscale, binarizing, dilation."""
     log.info("Creating binary mask")
     img = rgb2gray(img)
     thresh = threshold_sauvola(img, window_size=101)
     img = img <= thresh
-    img = isotropic_dilation(img, radius=20)
+    img = isotropic_dilation(img, radius=radius)  # 40
     return img
 
 # -----------------------------------------------------------
@@ -133,7 +133,10 @@ class Segmenter:
                  img: ImageArray,
                  transformer: Optional[Callable] = None,
                  cluster_padding: Tuple[int, int] = (150, 150)) -> None:
-        """Create a binary mask using TRANSFORMER and find boxes, storing them in the object."""
+        """
+        Create a binary mask using TRANSFORMER and find boxes, storing them in the object.
+        TRANSFORMER is a function accepting an ImageArray as its sole argument.
+        """
         if transformer is None:
             transformer = create_binary_mask
         self.img = transformer(img)
@@ -242,6 +245,26 @@ class Segmenter:
         n = len(joined_boxes)
         log.info(f"Found {n} line boxes")
         self.line_boxes = joined_boxes
+
+
+class WordSegmenter(Segmenter):
+    """Segmenter specialized for identifying words."""
+
+    def __init__(self, img: ImageArray) -> None:
+        """Initialize a segmenter using a specialized binary mask for word.."""
+        def my_transformer(img):
+            create_binary_mask(img, radius=20)
+        super().__init__(img, my_transformer)
+
+
+class LineSegmenter(Segmenter):
+    """Segmenter specialized for identifying lines."""
+
+    def __init__(self, img: ImageArray) -> None:
+        """Initialize a segmenter using a specialized binary mask for lines."""
+        def my_transformer(img):
+            create_binary_mask(img, radius=40)
+        super().__init__(img, my_transformer, (180, 180))
 
 
 # -----------------------------------------------------------
