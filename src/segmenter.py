@@ -139,7 +139,6 @@ def binarize(img: ImageArray) -> ImageArray:
     Turn RGB image `img` into a binary image using Sauvola threshold algorithm.
     """
     if image_is_a_mask(img):
-        log.error("Asked to convert image into a mask, but it is already one.")
         return img
     log.info("Creating binary mask")
     img = rgb2gray(img)
@@ -369,6 +368,8 @@ class WordSegmenter(Segmenter):
 
     def __init__(self, img: ImageArray) -> None:
         """Initialize a segmenter using a specialized binary mask for word.."""
+        log.info("Segmenting for words")
+
         def my_transformer(img) -> ImageArray:
             return create_binary_mask(img, radius=20)
         super().__init__(img, my_transformer)
@@ -379,6 +380,8 @@ class LineSegmenter(Segmenter):
 
     def __init__(self, img: ImageArray) -> None:
         """Initialize a segmenter using a specialized binary mask for lines."""
+        log.info("Segmenting for lines")
+
         def my_transformer(img) -> ImageArray:
             return create_binary_mask(img, radius=40)
         super().__init__(img, my_transformer, (180, 180))
