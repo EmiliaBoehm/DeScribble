@@ -150,8 +150,14 @@ def binarize(img: ImageArray) -> ImageArray:
 def create_binary_mask(img, radius: int = 20) -> ImageArray:
     """
     Transform `img`  using grayscale, binarizing, dilation.
+
+    Args:
+          img: A binary or an RGB image. If it is a binary image,
+               skip the binarization.
     """
-    img = isotropic_dilation(binarize(img), radius=radius)  # 40
+    if not image_is_a_mask(img):
+        img = binarize(img)
+    img = isotropic_dilation(img, radius=radius)  # 40
     return img
 
 
@@ -180,7 +186,8 @@ class Segmenter:
     This is the way scikit image uses it (calling y 'rows' and x 'columns').
     """
 
-    img: ImageArray
+    word_mask: ImageArray
+    binary_img: ImageArray
     word_boxes: list[BBox]
     line_boxes: list[BBox]
 
@@ -198,9 +205,13 @@ class Segmenter:
         """
         if transformer is None:
             transformer = create_binary_mask
-        self.img = transformer(img)
-        if self.img is None:
-            log.fatal("Could not get a binary mask, canceling.")
+        self.binary_img = binarize(img)
+        if self.binary_img is None:
+            log.critical("Could not binarize the image, canceling.")
+            sys.exit(1)
+        self.word_mask = transformer(self.binary_img)
+        if self.word_mask is None:
+            log.critical("Could not transform the binary image, canceling.")
             sys.exit(1)
         self.word_boxes = []
         self.line_boxes = []
@@ -246,7 +257,7 @@ class Segmenter:
         """
         x_dist, y_dist = dist
         y_min, x_min, y_max, x_max = box
-        w, h = dimensions2d(self.img)
+        w, h = dimensions2d(self.word_mask)
         return (max(y_min - y_dist, 0),
                 max(x_min - x_dist, 0),
                 min(y_max + y_dist, h),
@@ -310,9 +321,9 @@ class Segmenter:
         Store the result in `self.word_boxes`.
         """
         log.info("Looking for word boxes")
-        x_dim, y_dim = dimensions2d(self.img)
+        x_dim, y_dim = dimensions2d(self.word_mask)
         # Find regions with 1s
-        label_img, count = label(self.img, connectivity=self.img.ndim, return_num=True)
+        label_img, count = label(self.word_mask, connectivity=self.word_mask.ndim, return_num=True)
         props = regionprops(label_img)
 
         boxes = []   # Return value
@@ -390,9 +401,9 @@ class ImageWorker:
         Invert the mask unless `invert` is False.
         """
         self.img = img.copy()
-        if self.img.ndim == 2:
+        if image_is_a_mask(self.img):
             self.img = mask2rgb(self.img, invert)
-            log.info("Transformed binary image to RGB")
+            log.info("Transforming binary image to b/w RGB")
 
     def write(self, file: PathOrStr) -> None:
         """Store the image."""
