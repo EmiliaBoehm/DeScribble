@@ -16,6 +16,7 @@ from skimage.draw import rectangle_perimeter, rectangle, set_color
 import numpy as np
 from typing import TypeAlias, Union, Tuple, Callable, Any, Optional
 import logging
+import yaml
 
 ImageArray: TypeAlias = np.ndarray
 PathOrStr: TypeAlias = Union[Path, str]
@@ -556,6 +557,165 @@ class ImageWorker:
         with Image.fromarray(self.img) as im:
             im.thumbnail((1000, 1000))
             im.show()
+
+# -----------------------------------------------------------
+
+
+class Pipeline:
+    """
+    Initialize and run a preprocessing pipeline.
+    """
+
+    config: dict
+    root_path: Path
+
+    def __init__(self,
+                 yaml_file: Optional[PathOrStr] = None,
+                 root_node: str = 'preprocess') -> None:
+        """
+        Initialize a pipeline using `yaml_file`.
+
+        If no argument is given, look for a YAML file called `params.yaml`
+        in the project's root directory.  The root directory
+        is determined by locating the directory `.git`.
+        """
+        if not yaml_file:
+            root = self.get_root_path()
+            results = list(root.glob('params.yaml'))
+            if results:
+                yaml_file = results[0]
+            if not yaml_file:
+                log.error(f"Could not locate pipeline configuration file {yaml_file}")
+                sys.exit(1)
+        config_path = Path(yaml_file)
+        self.root_path = config_path.parent
+        with open(config_path, 'r') as file:
+            config = yaml.safe_load(file)
+        if not config[root_node]:
+            log.error(f"YAML configuration file {config_path}' has no root node '{root_node}'")
+            sys.exit(1)
+        self.config = config[root_node]
+
+    def get_root_path(self) -> Path:
+        """
+        Find the root directory which as a `.git` directory.
+        If none is found, return the current directory.
+        """
+        path = Path.cwd()
+        for dir in path.resolve().parents:
+            if (dir / ".git").exists():
+                path = dir
+        return path
+
+    def validate_image_sources(self) -> bool:
+        """
+        Check if image sources are valid file paths.
+        """
+        pass
+        return True
+
+    def get_param(self, tree_path: str, separator: str = '/',
+                  log_not_found: bool = False) -> Any:
+        """
+        Find the configuration parameter defined by the 'tree-path'.
+
+        Example:
+                    Pipeline.get_param('image-sources/raw')
+
+        Args:
+
+           tree-path: String where  a slash designats a child node.
+           separator: string separating the nodes, defaults to '/'
+           log_not_found: Log an error if `tree_path` yields None.
+
+        Returns:
+
+           Any value associated with this path, or None.
+        """
+        paths = tree_path.strip(separator).split(separator)
+        val = None
+        config = self.config
+        while paths and type(config) is dict:
+            val = config.get(paths[0])
+            if type(val) is dict:
+                config = val
+            paths = paths[1:]
+        if not val and log_not_found:
+            log.error(f"Could not find configuration value associated with {tree_path}")
+        return val
+
+    def pump_boxes(self,
+                   src_config: str = 'images/bw',
+                   dest_config: str = 'images/segmented') -> None:
+        """
+        Read all images in the path stored in the config file tree path
+        `src_config`, find boxes, and write the boxes
+        to the corresponding subdirectory defined in the config file
+        tree path `dest_config`.
+
+        Args:
+             src_config: Treepath for the actual source path, as it is stored
+                         in the config file associated with this
+                         Pipeline object (defaults to `params.yaml` in
+                         the project root directory)
+
+             dest_config:  Treepath to the actual destination directory store.
+                           Subfoldes are created on the fly, if necessary.
+        """
+        # First check the paths passed
+        root = self.root_path
+        src_path = root / self.get_param(src_config, log_not_found=True)
+        dest_path = root / self.get_param(dest_config, log_not_found=True)
+        if not src_path or not dest_path:
+            log.fatal('Missing paths, cannot proceed.')
+            sys.exit(1)
+        src_path = Path(src_path).resolve()
+        if not src_path.exists():
+            log.fatal(f"Source path {src_path} not found")
+            sys.exit(1)
+        if not src_path.is_dir():
+            log.fatal(f"Source path {src_path} must be a directory")
+            sys.exit(1)
+        dest_path = Path(dest_path).resolve()
+        if dest_path.exists() and dest_path.is_file():
+            log.fatal(f"Destination path {dest_path} seems to point to a file, quitting")
+            sys.exit(1)
+        if not dest_path.exists():
+            log.info(f"Creating destination file {dest_path} on the fly")
+            dest_path.mkdir(parents=True)
+        # Define source files
+        # (this should be generator, ideally)
+        files = []
+        for suffix in ['jpg', 'jpeg']:
+            files.extend([file for file in Path(src_path).glob(f"*.{suffix}")])
+        # and go!
+        count = 0
+        for file in files:
+            log.info(f"Converting {file}:")
+            path = Path(file)   # make sure it's a Path object
+            if not path.is_file():
+                log.error(f"Source file {path} does not exist")
+                break      # skip this file
+            count += 1
+            stem = path.stem
+            # TODO do some sanity check on stem
+            dest = dest_path / stem
+            dest.mkdir(exist_ok=True)
+            img = read_image(file)
+            wseg = WordSegmenter(img)
+            lseg = LineSegmenter(wseg.binary_img)
+            bw_worker = ImageWorker(wseg.binary_img)
+            bw_worker.write_boxes(wseg.word_boxes, dest,
+                                  "word-{stem}-{i:03}.png", stem=stem)
+            bw_worker.write_boxes(lseg.line_boxes, dest,
+                                  "line-{stem}-{i:03}.png", stem=stem)
+        log.info(f"Segemented {count} files")
+
+
+
+
+
+
 
 # -----------------------------------------------------------
 # Example use:

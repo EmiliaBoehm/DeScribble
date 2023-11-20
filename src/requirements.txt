@@ -4,6 +4,7 @@ opencv-python
 pillow
 scikit-image
 numpy
+pyyaml
 
 # Local Variables:
 # mode: conf-unix
