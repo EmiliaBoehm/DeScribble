@@ -502,34 +502,38 @@ class ImageWorker:
         imsave(f"{dest}", self.get_slice(box), check_contrast=False)
 
     def write_boxes(self, boxes: list[BBox],
-                    filepattern: PathOrStr) -> None:
+                    dest_dir: PathOrStr,
+                    filepattern: str,
+                    **pattern_map) -> None:
         """Store all BOXES in FILEPATTERN with index appended.
 
         Args:
 
               boxes: List of boxes (y,x,y,x)
-              filename: Full path pattern for generating the filenames.
+              dest_dir: Directory to store the files in. If it does not exist,
+                        it will be created on the fly.
+              filepattern: A string which will be passed to str.format.
+                           Use {i} for the running index.
+              pattern_map: Any other values passed to `filepattern`,
+                           which will be expanded with `str.format`.
 
         Example:
 
-              `worker.write_boxes(boxes, '../src/images/lines.png')`
+              `worker.write_boxes(boxes, 'src/images/',
+                                  "lines-{i:03}.png")`
                  will write the boxes in the files:
-                              `../src/images/lines-001.png`
-                              `../src/images/lines-002.png`
+                              `src/images/lines-001.png`
+                              `src/images/lines-002.png`
                               ....
         """
-        path = Path(filepattern)
-        basename = path.stem
-        if not basename:
-            log.fatal("Filename missing")
-            sys.exit(0)
-
-        if not path.parent.exists():
-            log.info(f"Creating non-existing path {path.parent} on the fly")
-            path.parent.mkdir(parents=True)
+        path = Path(dest_dir)
+        if not path.exists():
+            log.info(f"Creating non-existing path {path} on the fly")
+            path.mkdir(parents=True)
 
         def write_indexed_box(box, i):
-            self.write_box(box, path.with_stem(f"{basename}_{i:03}"))
+            filename = filepattern.format(**pattern_map | {'i': i})
+            self.write_box(box, path / filename)
         self.foreach_box(boxes, write_indexed_box, with_index=True)
 
     def show(self) -> None:
@@ -563,13 +567,13 @@ def example_test():
 def example_use():
     """Example usage."""
     input_img = Path(TESTBILD_BW)
-    output_path = Path('/home/jv/Bilder/splittest2/')
+    output_path = Path('/home/jv/Bilder/splittest3/')
     img = read_image(input_img)
     seg = Segmenter(img)
 
     worker = ImageWorker(img)
-    worker.write_boxes(seg.word_boxes, output_path / "word.png")
-    worker.write_boxes(seg.line_boxes, output_path / "line.png")
+    worker.write_boxes(seg.word_boxes, output_path, "word-{i:03}.png")
+    worker.write_boxes(seg.line_boxes, output_path, "line-{i:03}.png")
 
     worker = ImageWorker(img)
     worker.draw_rectangles(seg.word_boxes)
