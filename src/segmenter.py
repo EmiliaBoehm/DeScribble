@@ -37,7 +37,7 @@ def activate_logger() -> logging.Logger:
     """Activate logging."""
     name = __name__ if __name__ != '__main__' else sys.argv[0]
     log = logging.getLogger(__name__)
-    formatter = logging.Formatter("%(asctime)s - %(name)s: %(levelname)s- %(funcName)s() - %(message)s")
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(funcName)s() - %(message)s", "%Y-%m-%d %H:%M:%S")
     fh = logging.FileHandler(f"{name}.log", mode='w')
     fh.setFormatter(formatter)
     ch = logging.StreamHandler()
