@@ -570,9 +570,9 @@ def example_test():
     wseg = WordSegmenter(img)
     lseg = LineSegmenter(img)
     # Draw lines on the mask!
-    wworker = ImageWorker(wseg.img)
+    wworker = ImageWorker(wseg.binary_img)
     wworker.draw_rectangles(wseg.word_boxes)
-    lworker = ImageWorker(lseg.img)
+    lworker = ImageWorker(lseg.binary_img)
     lworker.draw_rectangles(lseg.line_boxes)
     wworker.show()
     lworker.show()
