@@ -173,8 +173,20 @@ class Segmenter:
     """
     Initialized with an image, the object transforms it, finds bounding
     boxes of the binarized image and builds clusters of all boxes who are
-    within a certain distance to each other. The results are stored in the
-    object's instance as attributes:
+    within a certain distance to each other.
+
+    Args:
+
+         newobject = Segmenter(img, transformer-fn)
+
+         img:   ImageArray
+
+         transfomer-fn: Function which accepts an image, transforms it, and returns the
+                        transformede image (ImageArray)
+
+    Returns:
+
+         The results are stored in the object's instance as attributes:
 
           word_boxes - A list of bounding boxes for 'words'
                        (contours of a certain size).
@@ -193,8 +205,7 @@ class Segmenter:
 
     def __init__(self,
                  img: ImageArray,
-                 transformer: Optional[Callable] = None,
-                 cluster_padding: Tuple[int, int] = (150, 150)) -> None:
+                 transformer: Optional[Callable] = None) -> None:
         """
         Create a binary mask using `transformer` and find boxes, storing them in the object.
 
@@ -216,7 +227,7 @@ class Segmenter:
         self.word_boxes = []
         self.line_boxes = []
         self.find_word_boxes()
-        self.find_line_boxes(cluster_padding)
+        self.find_line_boxes()
 
     def _overlap(self, box1: BBox, box2: BBox) -> bool:
         """
@@ -338,29 +349,67 @@ class Segmenter:
             width = x_max - x_min
             one_third_x = width > (x_dim / 3)
             one_third_y = height > (y_dim / 3)
-            if round(region.extent, 2) < 0.75 and not one_third_x and not one_third_y:
+            # TEMP Change back; This is debugging!
+            log.debug(f"Region extent: {region.extent}, 1/3 x = {one_third_x}, 1/3 x = {one_third_y}")
+            if round(region.extent, 2) < 0.8: #  and not one_third_x and not one_third_y:
                 boxes += [region.bbox]
         n = len(boxes)
         log.info(f"Found {n} word boxes")
         self.word_boxes = boxes
 
-    def find_line_boxes(self,
-                        padding: Tuple[int, int] = (150, 150),
-                        boxes: Optional[list[BBox]] = None) -> None:
+    def _find_line_boxes(self,
+                         padding: Tuple[int, int]) -> list[BBox]:
         """
         Find clusters where `boxes` all overlap within `padding` distance.
         Store the result in `self.line_boxes`.
+
+        Args:
+             padding: (x,y) padding in x and y direction
+
+             self.word_boxes    List of word contour boxes
+             self.word_mask    Masked (dilated) binary image
+
+        Returns:
+
+            List of BBoxes (or empty list)
         """
-        log.info("Looking for line boxes")
-        if boxes is None:
-            boxes = self.word_boxes
         joined_boxes = []
+        boxes = self.word_boxes
         while boxes:
             group = self._greedy_collect(boxes[0], boxes, padding)
             joined_boxes += [self._bounding_box(group)]
             boxes = list(set(boxes) - set(group))
+        return joined_boxes
+
+    def find_line_boxes(self) -> None:
+        """
+        Find line boxes using greedy clustering.
+
+        Starting with a padding box of the size 1/3w and 1/3h of the image,
+        cluster boxes until 3 or more have been found.
+
+        Args:
+                self.word_mask    Image in which the word boxes have been found
+        """
+        boxes = self.word_boxes
+        if not boxes:
+            log.error('Trying to find line boxes, but there are no word boxes. Skipping.')
+            return
+        # Set inital padding size to roughly 1/3
+        w, h = dimensions2d(self.word_mask)
+        padding = (round(w * .3), round(h * .37))
+        step_size = (round(w * .01), round(h * .01))
+        log.info(f"Looking for line boxes starting with padding {padding}")
+
+        joined_boxes: list[BBox] = []
+        i = 0
+        while len(joined_boxes) < 3 and all(val > 0 for val in padding):
+            i += 1
+            joined_boxes = self._find_line_boxes(padding)
+            padding = (padding[0] - step_size[0],
+                       padding[1] - step_size[1])
         n = len(joined_boxes)
-        log.info(f"Found {n} line boxes")
+        log.info(f"Found {n} line boxes with padding {padding} after {i} iterations")
         self.line_boxes = joined_boxes
 
 
@@ -385,7 +434,7 @@ class LineSegmenter(Segmenter):
 
         def my_transformer(img) -> ImageArray:
             return create_binary_mask(img, radius=40)
-        super().__init__(img, my_transformer, (180, 180))
+        super().__init__(img, my_transformer)
 
 
 # -----------------------------------------------------------
