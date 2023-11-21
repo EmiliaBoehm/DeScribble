@@ -707,6 +707,9 @@ class Pipeline:
             # TODO do some sanity check on stem
             dest = dest_path / stem
             dest.mkdir(exist_ok=True)
+            # TEMP Delete files in target direcetory for debuging:
+            for del_file in dest.glob('*'):
+                del_file.unlink()
             img = read_image(file)
             wseg = WordSegmenter(img)
             lseg = LineSegmenter(wseg.binary_img)
