@@ -645,27 +645,28 @@ class Pipeline:
         return val
 
     def pump_boxes(self,
-                   src_config: str = 'images/bw',
-                   dest_config: str = 'images/segmented') -> None:
+                   src_path: Optional[PathOrStr] = None,
+                   dest_path: Optional[PathOrStr] = None,
+                   use_file: Union[None, PathOrStr, list[PathOrStr]] = None) -> None:
         """
-        Read all images in the path stored in the config file tree path
-        `src_config`, find boxes, and write the boxes
-        to the corresponding subdirectory defined in the config file
-        tree path `dest_config`.
+        Read all images in the path stored in the config file, find boxes,
+        and write the boxes to the corresponding subdirectory also defined in
+        the config file.
 
         Args:
-             src_config: Treepath for the actual source path, as it is stored
-                         in the config file associated with this
-                         Pipeline object (defaults to `params.yaml` in
-                         the project root directory)
+             src_path:   Source path or None. Defaults to the value stored in
+                         `params.yaml`.
 
-             dest_config:  Treepath to the actual destination directory store.
-                           Subfoldes are created on the fly, if necessary.
+             dest_path:  Destination path or None. Defaults to the value stored
+                         `params.yaml`. Subfoldes are created on the fly, if
+                         necessary.
+
+             use_file:   Apply the pipeline only on this particular file or list of files.
         """
         # First check the paths passed
         root = self.root_path
-        src_path = root / self.get_param(src_config, log_not_found=True)
-        dest_path = root / self.get_param(dest_config, log_not_found=True)
+        src_path = root / self.get_param("images/bw", log_not_found=True) if src_path is None else src_path
+        dest_path = root / self.get_param("images/segmented", log_not_found=True) if dest_path is None else dest_path
         if not src_path or not dest_path:
             log.fatal('Missing paths, cannot proceed.')
             sys.exit(1)
@@ -686,8 +687,13 @@ class Pipeline:
         # Define source files
         # (this should be generator, ideally)
         files = []
-        for suffix in ['jpg', 'jpeg']:
-            files.extend([file for file in Path(src_path).glob(f"*.{suffix}")])
+        if use_file is None:
+            for suffix in ['jpg', 'jpeg']:
+                files.extend([file for file in Path(src_path).glob(f"*.{suffix}")])
+        else:
+            use_file = use_file if isinstance(use_file, list) else [use_file]
+            for file in use_file:
+                files.append(src_path / Path(file))
         # and go!
         count = 0
         for file in files:
