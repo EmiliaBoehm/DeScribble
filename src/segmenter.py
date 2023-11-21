@@ -17,6 +17,7 @@ import numpy as np
 from typing import TypeAlias, Union, Tuple, Callable, Any, Optional
 import logging
 import yaml
+import math
 
 ImageArray: TypeAlias = np.ndarray
 PathOrStr: TypeAlias = Union[Path, str]
@@ -177,12 +178,13 @@ class Segmenter:
 
     Args:
 
-         newobject = Segmenter(img, transformer-fn)
+         newobject = Segmenter(img, dilation_range)
 
          img:   ImageArray
 
-         transfomer-fn: Function which accepts an image, transforms it, and returns the
-                        transformede image (ImageArray)
+         dilation_range: (min, max) range of dilation radiuses to
+                         try when finding word boxes (starting with
+                         max until min is reached)
 
     Returns:
 
@@ -202,32 +204,24 @@ class Segmenter:
     binary_img: ImageArray
     word_boxes: list[BBox]
     line_boxes: list[BBox]
+    dilation_range: Tuple[int, int]
 
     def __init__(self,
                  img: ImageArray,
-                 transformer: Optional[Callable] = None) -> None:
+                 dilation_range: Tuple[int, int]) -> None:
         """
-        Create a binary mask using `transformer` and find boxes, storing them in the object.
-
-        Args:
-
-          transformer: A function accepting an ImageArray as its sole argument. The fucntion must
-                       also return an ImageArray (either binary or RGB).
+        Create a binary mask and find word or line boxes.
         """
-        if transformer is None:
-            transformer = create_binary_mask
         self.binary_img = binarize(img)
         if self.binary_img is None:
             log.critical("Could not binarize the image, canceling.")
             sys.exit(1)
-        self.word_mask = transformer(self.binary_img)
-        if self.word_mask is None:
-            log.critical("Could not transform the binary image, canceling.")
-            sys.exit(1)
+        self.dilation_range = dilation_range
         self.word_boxes = []
         self.line_boxes = []
-        self.find_word_boxes()
-        self.find_line_boxes()
+        # TODO Change docstring of Class
+        # self.find_word_boxes()
+        # self.find_line_boxes()
 
     def _overlap(self, box1: BBox, box2: BBox) -> bool:
         """
@@ -325,34 +319,76 @@ class Segmenter:
                                         dist)
         return list(set(res))
 
-    def find_word_boxes(self) -> None:
+    def _find_word_boxes(self, dilation_radius: int) -> list[BBox]:
         """
         Find bounding boxes on the object's img.
 
-        Store the result in `self.word_boxes`.
+        Args:
+
+            dilation_radius: Radius for the dilation applied
+                             to the binary mask
+
+        Depends on:
+
+            self.binary_img
+
+        Returns:
+
+             List of bounding boxes or empty list.
+
+        Changes:
+
+            self.word_mask
         """
-        log.info("Looking for word boxes")
+        self.word_mask = create_binary_mask(self.binary_img, dilation_radius)
         x_dim, y_dim = dimensions2d(self.word_mask)
-        # Find regions with 1s
+        area_img = x_dim * y_dim
+        gesamt_diagonale = math.sqrt(x_dim**2 + y_dim**2)
+        min_diagonale = round(gesamt_diagonale * 0.015)
+        # Find regions with ones:
         label_img, count = label(self.word_mask, connectivity=self.word_mask.ndim, return_num=True)
         props = regionprops(label_img)
-
-        boxes = []   # Return value
+        # Collect all boxes which have a reasonable size
+        boxes: list[BBox] = []
         for i, region in enumerate(props):
-            # only take regions which:
-            #  - do not take up more than one third of the image in
-            #    either dimension
-            #  - which have a certain extent (area of whole image /
-            #     area of box: the closer to 1, the smaller the extent)
             y_min, x_min, y_max, x_max = region.bbox
-            height = y_max - y_min
-            width = x_max - x_min
-            one_third_x = width > (x_dim / 3)
-            one_third_y = height > (y_dim / 3)
-            # TEMP Change back; This is debugging!
-            log.debug(f"Region extent: {region.extent}, 1/3 x = {one_third_x}, 1/3 x = {one_third_y}")
-            if round(region.extent, 2) < 0.8: #  and not one_third_x and not one_third_y:
+            # NOTE Possibly useful metrics:
+            area_bbox = (x_max - x_min) * (y_max - y_min)
+            # ratio = area_bbox / area_img
+            squariness = (x_max - x_min) / (y_max - y_min)
+            diagonale = math.sqrt((x_max - x_min) ** 2 + (y_max - y_min) ** 2)
+            if diagonale > min_diagonale and (round(squariness, 2) > 1.02 or round(squariness, 2) < 0.98) \
+               and area_bbox > round(area_img * 0.001, 3):
                 boxes += [region.bbox]
+        boxes_with_area = [ (box, (box[X_MAX] - box[X_MIN]) * (box[Y_MAX] - box[Y_MIN])) for box in boxes ]
+        log.info(f"Found {len(boxes)} boxes:")
+        for area_box in sorted(boxes_with_area, key = lambda ab: ab[1]):
+            log.info(f"  with area {area_box[1]}")
+        return boxes
+
+    def find_word_boxes(self) -> None:
+        """
+        Find bounding boxes on the object's img by iterating the dilation radius.
+
+        Find boxes with the dilation within the object's dilation radius range
+        until 25 boxes or the minimum value are found.
+
+        Depends on:
+
+            self.dilation_range - Range of radius to try when dilating.
+
+        Changes:
+
+            self.word_mask    - Dilated binary image (mask)
+            self.word_boxes   - Resultig boxes
+        """
+        log.info("Looking for word boxes")
+        dilation_radius = self.dilation_range[1]   # start with max
+        boxes: list[BBox] = []
+        # REVIEW Use a lower min value for len(boxes)?
+        while len(boxes) < 30 and dilation_radius >= self.dilation_range[0]:
+            boxes = self._find_word_boxes(dilation_radius)
+            dilation_radius -= 2
         n = len(boxes)
         log.info(f"Found {n} word boxes")
         self.word_boxes = boxes
@@ -393,8 +429,7 @@ class Segmenter:
         """
         boxes = self.word_boxes
         if not boxes:
-            log.error('Trying to find line boxes, but there are no word boxes. Skipping.')
-            return
+            self.find_word_boxes()
         # Set inital padding size to roughly 1/3
         w, h = dimensions2d(self.word_mask)
         padding = (round(w * .3), round(h * .37))
@@ -419,10 +454,8 @@ class WordSegmenter(Segmenter):
     def __init__(self, img: ImageArray) -> None:
         """Initialize a segmenter using a specialized binary mask for word.."""
         log.info("Segmenting for words")
-
-        def my_transformer(img) -> ImageArray:
-            return create_binary_mask(img, radius=20)
-        super().__init__(img, my_transformer)
+        super().__init__(img, (1, 20))
+        super().find_word_boxes()
 
 
 class LineSegmenter(Segmenter):
@@ -431,10 +464,8 @@ class LineSegmenter(Segmenter):
     def __init__(self, img: ImageArray) -> None:
         """Initialize a segmenter using a specialized binary mask for lines."""
         log.info("Segmenting for lines")
-
-        def my_transformer(img) -> ImageArray:
-            return create_binary_mask(img, radius=40)
-        super().__init__(img, my_transformer)
+        super().__init__(img, (1, 40))
+        super().find_line_boxes()
 
 
 # -----------------------------------------------------------
@@ -775,13 +806,7 @@ class Pipeline:
             bw_worker.draw_rectangles(wseg.word_boxes, (0, 255, 0))
             bw_worker.draw_rectangles(lseg.line_boxes)
             write_image(dest / "0_bw_worker.png", bw_worker.img)
-
         log.info(f"Segemented {count} files")
-
-
-
-
-
 
 
 # -----------------------------------------------------------
