@@ -715,6 +715,15 @@ class Pipeline:
                                   "word-{stem}-{i:03}.png", stem=stem)
             bw_worker.write_boxes(lseg.line_boxes, dest,
                                   "line-{stem}-{i:03}.png", stem=stem)
+            # For debugging: Add masks and original image
+            write_image(dest / "0_binary_img.png", wseg.binary_img)
+            write_image(dest / "0_original_img.png", img)
+            write_image(dest / "0_word_mask.png", wseg.word_mask)
+            write_image(dest / "0_line_mask.png", lseg.word_mask)
+            bw_worker.draw_rectangles(wseg.word_boxes, (0, 255, 0))
+            bw_worker.draw_rectangles(lseg.line_boxes)
+            write_image(dest / "0_bw_worker.png", bw_worker.img)
+
         log.info(f"Segemented {count} files")
 
 
