@@ -344,7 +344,7 @@ class Segmenter:
         x_dim, y_dim = dimensions2d(self.word_mask)
         area_img = x_dim * y_dim
         gesamt_diagonale = math.sqrt(x_dim**2 + y_dim**2)
-        min_diagonale = round(gesamt_diagonale * 0.015)
+        min_diagonale = round(gesamt_diagonale * 0.015) #  0.015)
         # Find regions with ones:
         label_img, count = label(self.word_mask, connectivity=self.word_mask.ndim, return_num=True)
         props = regionprops(label_img)
@@ -352,13 +352,12 @@ class Segmenter:
         boxes: list[BBox] = []
         for i, region in enumerate(props):
             y_min, x_min, y_max, x_max = region.bbox
-            # NOTE Possibly useful metrics:
             area_bbox = (x_max - x_min) * (y_max - y_min)
             # ratio = area_bbox / area_img
             squariness = (x_max - x_min) / (y_max - y_min)
             diagonale = math.sqrt((x_max - x_min) ** 2 + (y_max - y_min) ** 2)
             if diagonale > min_diagonale and (round(squariness, 2) > 1.02 or round(squariness, 2) < 0.98) \
-               and area_bbox > round(area_img * 0.001, 3):
+               and area_bbox > round(area_img * 0.001, 3):  # 0.001
                 boxes += [region.bbox]
         if log.getEffectiveLevel() >= logging.DEBUG:
             areas = [(box[X_MAX] - box[X_MIN]) * (box[Y_MAX] - box[Y_MIN]) for box in boxes]
@@ -818,14 +817,14 @@ class Pipeline:
             n_total_word_boxes += n_words
             n_total_line_boxes += n_lines
             n_total_boxes += n_words + n_lines
-            log.info(f"f{count:03} {path.name} padded shape {img.shape}, boxes ({n_words}/{n_lines})")
+            log.info(f"{count:03} {path.name} padded shape {img.shape}, boxes ({n_words}/{n_lines})")
             # log.info(f"Word segmenting: {self._log_boxes(wseg.word_boxes)}")
             # log.info(f"Line segmenting: {self._log_boxes(lseg.line_boxes)}")
             # For debugging: Add masks and original image
-            word_worker = ImageWorker(wseg.word_mask)
-            word_worker.draw_rectangles(wseg.word_boxes)
-            line_worker = ImageWorker(lseg.word_mask)
-            line_worker.draw_rectangles(lseg.word_boxes)
+            word_worker = ImageWorker(wseg.word_mask, invert=False)
+            word_worker.draw_rectangles(wseg.word_boxes, (0, 255, 255))
+            line_worker = ImageWorker(lseg.word_mask, invert=False)
+            line_worker.draw_rectangles(lseg.line_boxes)
             write_image(dest / "0_binary_img.png", wseg.binary_img)
             write_image(dest / "0_original_img.png", img)
             write_image(dest / "0_word_mask.png", word_worker.img)
