@@ -1,0 +1,8 @@
+# Parameters for the pipeline
+#
+preprocess:
+  images:
+    raw: ./images/raw/
+    bw:  ./images/bw/
+    segmented: ./images/segmented/
+
