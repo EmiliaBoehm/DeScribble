@@ -1,0 +1,6 @@
+outs:
+- md5: f7dd47f7b12d53fb48cc230ab0bc41c5.dir
+  size: 157816328
+  nfiles: 4495
+  hash: md5
+  path: segmented
