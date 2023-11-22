@@ -29,16 +29,14 @@ X_MIN = 1
 Y_MAX = 2
 X_MAX = 3
 
-# TODO Why is there no documentation on the imported functions from scikit?
-
 # -----------------------------------------------------------
 # Logging
 
 
-def activate_logger() -> logging.Logger:
+def activate_logger(level: logging.level = logging.INFO) -> logging.Logger:
     """Activate logging."""
-    name = __name__ if __name__ != '__main__' else sys.argv[0]
-    log = logging.getLogger(__name__)
+    name = 'Segmenter'
+    log = logging.getLogger(name)
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(funcName)s() - %(message)s", "%Y-%m-%d %H:%M:%S")
     fh = logging.FileHandler(f"{name}.log", mode='w')
     fh.setFormatter(formatter)
@@ -47,8 +45,8 @@ def activate_logger() -> logging.Logger:
     #log.addHandler(fh)
     log.addHandler(ch)
     log.setLevel(logging.DEBUG)  # all log messages to the handler
-    fh.setLevel(logging.DEBUG)      # Log everything to the file
-    ch.setLevel(logging.DEBUG)      # as well as to the console
+    fh.setLevel(level)
+    ch.setLevel(level)
     return log
 
 
@@ -69,7 +67,7 @@ def image_is_a_mask(img: ImageArray) -> bool:
 
 def read_image(file: PathOrStr) -> ImageArray:
     """
-    Read the image at `file`.
+    Read the image at `file` and add padding.
 
     Args:
 
@@ -84,7 +82,9 @@ def read_image(file: PathOrStr) -> ImageArray:
     # TODO Try pillow instead
     # Array = (h, w, 3)
     img = cv2.imread(f"{src_path}")[:, :, :: -1]
-    log.info(f"Read image {src_path} {img.shape[:2]}")
+    pad_size = 20
+    img = np.pad(img, pad_width=((pad_size,), (pad_size,), (0,)), constant_values=(255,))
+    log.debug(f"Read image with padded dimensions {src_path} {img.shape[:2]}")
     return img
 
 
@@ -97,7 +97,7 @@ def write_image(file: PathOrStr, img: ImageArray) -> None:
     if image_is_a_mask(img):
         img = mask2rgb(img.copy())
         imgtype = " binary "
-    log.info(f"Storing{imgtype}image into {dest}")
+    log.debug(f"Storing{imgtype}image into {dest}")
     imsave(f"{dest}", img, check_contrast=False)
 
 
@@ -142,7 +142,7 @@ def binarize(img: ImageArray) -> ImageArray:
     """
     if image_is_a_mask(img):
         return img
-    log.info("Creating binary mask")
+    log.debug("Creating binary mask")
     img = rgb2gray(img)
     thresh = threshold_sauvola(img, window_size=101)
     return (img <= thresh)
@@ -360,10 +360,11 @@ class Segmenter:
             if diagonale > min_diagonale and (round(squariness, 2) > 1.02 or round(squariness, 2) < 0.98) \
                and area_bbox > round(area_img * 0.001, 3):
                 boxes += [region.bbox]
-        boxes_with_area = [ (box, (box[X_MAX] - box[X_MIN]) * (box[Y_MAX] - box[Y_MIN])) for box in boxes ]
-        log.info(f"Found {len(boxes)} boxes:")
-        for area_box in sorted(boxes_with_area, key = lambda ab: ab[1]):
-            log.info(f"  with area {area_box[1]}")
+        if log.getEffectiveLevel() >= logging.DEBUG:
+            areas = [(box[X_MAX] - box[X_MIN]) * (box[Y_MAX] - box[Y_MIN]) for box in boxes]
+            log.debug(f"Found {len(boxes)} boxes:")
+            for area in sorted(areas):
+                log.debug(f"  with area {area}")
         return boxes
 
     def find_word_boxes(self) -> None:
@@ -382,7 +383,7 @@ class Segmenter:
             self.word_mask    - Dilated binary image (mask)
             self.word_boxes   - Resultig boxes
         """
-        log.info("Looking for word boxes")
+        log.debug("Looking for word boxes")
         dilation_radius = self.dilation_range[1]   # start with max
         boxes: list[BBox] = []
         # REVIEW Use a lower min value for len(boxes)?
@@ -390,7 +391,7 @@ class Segmenter:
             boxes = self._find_word_boxes(dilation_radius)
             dilation_radius -= 2
         n = len(boxes)
-        log.info(f"Found {n} word boxes")
+        log.debug(f"Found {n} word boxes")
         self.word_boxes = boxes
 
     def _find_line_boxes(self,
@@ -433,8 +434,8 @@ class Segmenter:
         # Set inital padding size to roughly 1/3
         w, h = dimensions2d(self.word_mask)
         padding = (round(w * .3), round(h * .37))
-        step_size = (round(w * .01), round(h * .01))
-        log.info(f"Looking for line boxes starting with padding {padding}")
+        step_size = (round(w * .005), round(h * .005))
+        log.debug(f"Looking for line boxes starting with padding {padding}")
 
         joined_boxes: list[BBox] = []
         i = 0
@@ -444,7 +445,7 @@ class Segmenter:
             padding = (padding[0] - step_size[0],
                        padding[1] - step_size[1])
         n = len(joined_boxes)
-        log.info(f"Found {n} line boxes with padding {padding} after {i} iterations")
+        log.debug(f"Found {n} line boxes with padding {padding} after {i} iterations")
         self.line_boxes = joined_boxes
 
 
@@ -453,8 +454,10 @@ class WordSegmenter(Segmenter):
 
     def __init__(self, img: ImageArray) -> None:
         """Initialize a segmenter using a specialized binary mask for word.."""
-        log.info("Segmenting for words")
-        super().__init__(img, (1, 20))
+        log.debug("Segmenting for words")
+        # The smaller the first value in the range, the more
+        # fragmented are the word boxes.
+        super().__init__(img, (2, 20))
         super().find_word_boxes()
 
 
@@ -463,8 +466,8 @@ class LineSegmenter(Segmenter):
 
     def __init__(self, img: ImageArray) -> None:
         """Initialize a segmenter using a specialized binary mask for lines."""
-        log.info("Segmenting for lines")
-        super().__init__(img, (1, 40))
+        log.debug("Segmenting for lines")
+        super().__init__(img, (4, 20))
         super().find_line_boxes()
 
 
@@ -487,7 +490,7 @@ class ImageWorker:
         self.img = img.copy()
         if image_is_a_mask(self.img):
             self.img = mask2rgb(self.img, invert)
-            log.info("Transforming binary image to b/w RGB")
+            log.debug("Transforming binary image to b/w RGB")
 
     def write(self, file: PathOrStr) -> None:
         """Store the image."""
@@ -593,7 +596,7 @@ class ImageWorker:
         box_for_output = (box[X_MIN], box[Y_MIN],
                           box[X_MAX], box[Y_MAX])
         dest = Path(filename)
-        log.info(f"Storing box {box_for_output} into {dest}")
+        log.debug(f"Storing box {box_for_output} into {dest}")
         imsave(f"{dest}", self.get_slice(box), check_contrast=False)
 
     def write_boxes(self, boxes: list[BBox],
@@ -623,7 +626,7 @@ class ImageWorker:
         """
         path = Path(dest_dir)
         if not path.exists():
-            log.info(f"Creating non-existing path {path} on the fly")
+            log.debug(f"Creating non-existing path {path} on the fly")
             path.mkdir(parents=True)
 
         def write_indexed_box(box, i):
@@ -724,6 +727,13 @@ class Pipeline:
             log.error(f"Could not find configuration value associated with {tree_path}")
         return val
 
+    def _log_boxes(self, box_list: list[BBox]) -> str:
+        """Return string with some statistic values on `box_list`."""
+        n = len(box_list)
+        areas = [(box[X_MAX] - box[X_MIN]) * (box[Y_MAX] - box[Y_MIN]) for box in box_list]
+        b_min, b_max, b_mean = (min(areas), max(areas), round(np.mean(areas)))
+        return f"{n} boxes, area min {b_min}, mean {b_mean}, max {b_max}"
+
     def pump_boxes(self,
                    src_path: Optional[PathOrStr] = None,
                    dest_path: Optional[PathOrStr] = None,
@@ -762,13 +772,13 @@ class Pipeline:
             log.fatal(f"Destination path {dest_path} seems to point to a file, quitting")
             sys.exit(1)
         if not dest_path.exists():
-            log.info(f"Creating destination file {dest_path} on the fly")
+            log.debug(f"Creating destination file {dest_path} on the fly")
             dest_path.mkdir(parents=True)
         # Define source files
         # (this should be generator, ideally)
         files = []
         if use_file is None:
-            for suffix in ['jpg', 'jpeg']:
+            for suffix in ['jpg', 'jpeg', 'png']:
                 files.extend([file for file in Path(src_path).glob(f"*.{suffix}")])
         else:
             use_file = use_file if isinstance(use_file, list) else [use_file]
@@ -776,8 +786,12 @@ class Pipeline:
                 files.append(src_path / Path(file))
         # and go!
         count = 0
+        n_total_boxes = 0
+        n_total_word_boxes = 0
+        n_total_line_boxes = 0
+        log.info(f"Starting the segmentation of {len(files)} files")
         for file in files:
-            log.info(f"Converting {file}:")
+            log.debug(f"Converting {file}:")
             path = Path(file)   # make sure it's a Path object
             if not path.is_file():
                 log.error(f"Source file {path} does not exist")
@@ -798,15 +812,30 @@ class Pipeline:
                                   "word-{stem}-{i:03}.png", stem=stem)
             bw_worker.write_boxes(lseg.line_boxes, dest,
                                   "line-{stem}-{i:03}.png", stem=stem)
+            # Print statistics
+            n_words = len(wseg.word_boxes)
+            n_lines = len(lseg.line_boxes)
+            n_total_word_boxes += n_words
+            n_total_line_boxes += n_lines
+            n_total_boxes += n_words + n_lines
+            log.info(f"f{count:03} {path.name} padded shape {img.shape}, boxes ({n_words}/{n_lines})")
+            # log.info(f"Word segmenting: {self._log_boxes(wseg.word_boxes)}")
+            # log.info(f"Line segmenting: {self._log_boxes(lseg.line_boxes)}")
             # For debugging: Add masks and original image
+            word_worker = ImageWorker(wseg.word_mask)
+            word_worker.draw_rectangles(wseg.word_boxes)
+            line_worker = ImageWorker(lseg.word_mask)
+            line_worker.draw_rectangles(lseg.word_boxes)
             write_image(dest / "0_binary_img.png", wseg.binary_img)
             write_image(dest / "0_original_img.png", img)
-            write_image(dest / "0_word_mask.png", wseg.word_mask)
-            write_image(dest / "0_line_mask.png", lseg.word_mask)
+            write_image(dest / "0_word_mask.png", word_worker.img)
+            write_image(dest / "0_line_mask.png", line_worker.img)
             bw_worker.draw_rectangles(wseg.word_boxes, (0, 255, 0))
             bw_worker.draw_rectangles(lseg.line_boxes)
             write_image(dest / "0_bw_worker.png", bw_worker.img)
-        log.info(f"Segemented {count} files")
+        box_avg = round(n_total_boxes / count)
+        log.info(f"Segemented {count} files, found total {n_total_boxes} ({n_total_word_boxes, n_total_line_boxes}), avg {box_avg} per file")
+
 
 
 # -----------------------------------------------------------
