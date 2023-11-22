@@ -16,3 +16,19 @@ stages:
       hash: md5
       md5: 2ee23ead1f0471ddbb7ece2a4d05e861
       size: 93
+  random_forest:
+    cmd: python -c 'print("Hier kommt ein Skript!")'
+    deps:
+    - path: images/segmented/
+      hash: md5
+      md5: 99fd2000a49b203c7dd259f09e4cb7b6.dir
+      size: 151660102
+      nfiles: 4476
+  vit:
+    cmd: python -c 'print("Transformers!")'
+    deps:
+    - path: images/segmented/
+      hash: md5
+      md5: 99fd2000a49b203c7dd259f09e4cb7b6.dir
+      size: 151660102
+      nfiles: 4476

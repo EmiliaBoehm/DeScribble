@@ -1,8 +1,11 @@
 stages:
-  preprocess:
-    cmd: python src/wrap.py data/raw-sentence.txt data/wrapped-sentence.txt
+  random_forest:
+    cmd:  python -c 'print("Hier kommt ein Skript!")'
     deps:
-    - data/raw-sentence.txt
-    - src/wrap.py
-    outs:
-    - data/wrapped-sentence.txt
+    - images/segmented/
+    # outs:
+    # - data/wrapped-sentence.txt
+  vit:
+    cmd: python -c 'print("Transformers!")'
+    deps:
+    - images/segmented/
