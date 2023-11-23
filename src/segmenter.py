@@ -15,6 +15,7 @@ from skimage.measure import label, regionprops
 from skimage.draw import rectangle_perimeter, rectangle, set_color
 import numpy as np
 from typing import TypeAlias, Union, Tuple, Callable, Any, Optional
+import logger
 import logging
 import yaml
 import math
@@ -29,32 +30,8 @@ X_MIN = 1
 Y_MAX = 2
 X_MAX = 3
 
-# -----------------------------------------------------------
-# Logging
-
-
-def activate_logger(level: logging.level = logging.INFO) -> logging.Logger:
-    """Activate logging."""
-    name = 'Segmenter'
-    log = logging.getLogger(name)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(funcName)s() - %(message)s", "%Y-%m-%d %H:%M:%S")
-    fh = logging.FileHandler(f"{name}.log", mode='w')
-    fh.setFormatter(formatter)
-    ch = logging.StreamHandler()
-    ch.setFormatter(formatter)
-    #log.addHandler(fh)
-    log.addHandler(ch)
-    log.setLevel(logging.DEBUG)  # all log messages to the handler
-    fh.setLevel(level)
-    ch.setLevel(level)
-    return log
-
-
-# A little hack to allow re-loading the file into ipython w/o
-# multiplying the logger instances
-if 'log' not in globals():
-    log = activate_logger()
-
+global log
+log = logger.set_logger()
 
 # -----------------------------------------------------------
 # Image convenience Functions
@@ -344,7 +321,7 @@ class Segmenter:
         x_dim, y_dim = dimensions2d(self.word_mask)
         area_img = x_dim * y_dim
         gesamt_diagonale = math.sqrt(x_dim**2 + y_dim**2)
-        min_diagonale = round(gesamt_diagonale * 0.015) #  0.015)
+        min_diagonale = round(gesamt_diagonale * 0.015)  # 0.015)
         # Find regions with ones:
         label_img, count = label(self.word_mask, connectivity=self.word_mask.ndim, return_num=True)
         props = regionprops(label_img)
@@ -801,8 +778,8 @@ class Pipeline:
             dest = dest_path / stem
             dest.mkdir(exist_ok=True)
             # TEMP Delete files in target direcetory for debuging:
-            for del_file in dest.glob('*'):
-                del_file.unlink()
+            # for del_file in dest.glob('*'):
+            #     del_file.unlink()
             img = read_image(file)
             wseg = WordSegmenter(img)
             lseg = LineSegmenter(wseg.binary_img)
@@ -834,7 +811,6 @@ class Pipeline:
             write_image(dest / "0_bw_worker.png", bw_worker.img)
         box_avg = round(n_total_boxes / count)
         log.info(f"Segemented {count} files, found total {n_total_boxes} ({n_total_word_boxes, n_total_line_boxes}), avg {box_avg} per file")
-
 
 
 # -----------------------------------------------------------
