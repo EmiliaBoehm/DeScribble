@@ -102,4 +102,9 @@ class Config:
         return self.root_path / self.get_param("images/bw", log_not_found=True)
 
     def get_image_bw(self) -> Path:
+        """Return path to directory with b/w images."""
         return self.root_path / self.get_param("images/segmented", log_not_found=True)
+
+    def get_index(self) -> Path:
+        """Return path to .csv file with index data."""
+        return self.root_path / self.get_param("index", log_not_found=True)
