@@ -21,14 +21,14 @@ stages:
     deps:
     - path: images/segmented/
       hash: md5
-      md5: 99fd2000a49b203c7dd259f09e4cb7b6.dir
-      size: 151660102
-      nfiles: 4476
+      md5: f12e152b8d4dd4a58772f1684b1fdafc.dir
+      size: 167064896
+      nfiles: 4617
   vit:
     cmd: python -c 'print("Transformers!")'
     deps:
     - path: images/segmented/
       hash: md5
-      md5: 99fd2000a49b203c7dd259f09e4cb7b6.dir
-      size: 151660102
-      nfiles: 4476
+      md5: f12e152b8d4dd4a58772f1684b1fdafc.dir
+      size: 167064896
+      nfiles: 4617
