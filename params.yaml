@@ -1,6 +1,7 @@
 # Parameters for the pipeline
 #
 preprocess:
+  index: ./data/index_raw.csv
   images:
     raw: ./images/raw/
     bw:  ./images/bw/
