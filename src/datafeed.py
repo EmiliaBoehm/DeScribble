@@ -6,7 +6,7 @@ import sys
 from PIL import ImageShow
 #  from PIL import Image as PIL_Image  # conflicts with datasets.features.Image
 from pathlib import Path
-from datasets import Dataset
+from datasets import Dataset, DatasetDict
 from datasets.features import Features, Image, ClassLabel
 from torchvision.transforms import RandomResizedCrop, Compose, ToTensor, ToPILImage
 from torch import Tensor
@@ -173,6 +173,26 @@ def get_dataset_with_transform(image_list: list[dict],
     set_transforms(processor)
     ds.set_transform(batch_transformer)
     return ds
+
+
+def split_dataset_train_test_validate(ds: Dataset,
+                                      split_validate: float = 0.1,
+                                      split_test: float = 0.1,
+                                      split_train: float = 0.8
+                                      ) -> DatasetDict:
+    """Split ds into train, test and validation segments.
+    The size floats refer to the overall size."""
+    if not round(split_validate + split_test + split_train) == 1:
+        log.critical("Could not split dataset, split sizes do not add up to 1: validate={split_validate}, test={split_test}, train={split_train}")
+    inner_split_test = split_test * (split_test + split_train)
+    # inner_split_train = split_train * (split_test + split_train)
+    ds_split = ds.train_test_split(test_size=split_validate, stratify_by_column='label')
+    ds_inner_split = ds_split['train'].train_test_split(test_size=inner_split_test, stratify_by_column='label')
+    return DatasetDict({
+        'validation': ds_split['test'],
+        'test': ds_inner_split['test'],
+        'train': ds_inner_split['train']
+    })
 
 
 def show_ds_img(ds_dict: dict) -> None:
