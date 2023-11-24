@@ -15,7 +15,7 @@ from skimage.measure import label, regionprops
 from skimage.draw import rectangle_perimeter, rectangle, set_color
 import numpy as np
 from typing import TypeAlias, Union, Tuple, Callable, Any, Optional
-import logger
+#import logger
 import logging
 import config as cfg
 import math
@@ -30,8 +30,8 @@ X_MIN = 1
 Y_MAX = 2
 X_MAX = 3
 
-global log
-log = logger.set_logger()
+#global log
+log = logging.getLogger(__name__)
 
 # -----------------------------------------------------------
 # Image convenience Functions

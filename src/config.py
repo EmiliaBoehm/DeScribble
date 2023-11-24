@@ -2,13 +2,13 @@
 
 from typing import Optional, TypeAlias, Union, Any
 from pathlib import Path
-import logger
+import logging
 import sys
 import yaml
 
 
-global log
-log = logger.set_logger()
+
+log = logging.getLogger(__name__)
 
 
 PathOrStr: TypeAlias = Union[Path, str]

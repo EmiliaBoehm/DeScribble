@@ -6,14 +6,12 @@ Calling logger.set_logger() creates a global variable 'log' with a logger object
 
 import logging
 
-
 # -----------------------------------------------------------
 # Logging
 
 
 def get_logger(name: str, level=logging.INFO) -> logging.Logger:
     """Return a logger object."""
-    name = 'Segmenter'
     log = logging.getLogger(name)
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(module)s: %(funcName)s() - %(message)s", "%Y-%m-%d %H:%M:%S")
     fh = logging.FileHandler(f"{name}.log", mode='w')
@@ -31,6 +29,10 @@ def get_logger(name: str, level=logging.INFO) -> logging.Logger:
 def set_logger(level=logging.INFO) -> logging.Logger:
     """Set a global logging variable if it is not already set."""
     if 'log' in globals():
-        return globals()['log']
+        for handler in globals()['log'].handlers:
+            handler.close()
+            globals()['log'].removeHandler(handler)
+        del globals()['log']
+        return get_logger('Logger', level)
     else:
         return get_logger('Logger', level)
