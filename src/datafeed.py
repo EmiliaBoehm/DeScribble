@@ -1,18 +1,19 @@
 """Prepare and load the data for the model."""
 
-import PIL
 import pandas
 import numpy as np
+import sys
+from PIL import ImageShow
+#  from PIL import Image as PIL_Image  # conflicts with datasets.features.Image
 from pathlib import Path
-from datasets import Dataset, load_dataset
+from datasets import Dataset
 from datasets.features import Features, Image, ClassLabel
-from torchvision.transforms import RandomResizedCrop, Compose, Normalize, ToTensor, Resize, ToPILImage
-from transformers import AutoImageProcessor, AutoFeatureExtractor, VisionEncoderDecoderModel, DefaultDataCollator, AutoModelForImageClassification, TrainingArguments, Trainer
-from matplotlib import pyplot as plt
-from typing import Union, TypeAlias, Callable, Generator
+from torchvision.transforms import RandomResizedCrop, Compose, ToTensor, ToPILImage
+from torch import Tensor
+from transformers import AutoImageProcessor
+from typing import Union, TypeAlias, Callable, Optional
 #import logger
 import logging
-import sys
 import config as cfg
 
 #global log
@@ -127,33 +128,43 @@ def set_transforms(processor=None):
     ])
 
 
-def transform_ds_batch(batch: dict):
-    """Transform image in Dataset row to pixel values."""
+def transform_vit(batch: dict):
+    """Transform image batches from a Dataset to torch tensor pixel values."""
     if _transforms is None:
         log.critical("_transforms pipeline undefined, cannot proceed")
         sys.exit(1)
     batch['pixel_values'] = [_transforms(img.convert("RGB")) for img in batch['image']]
     del batch['image']
     return batch
-    # return {key: batch[key] for key in batch
-    #         if key not in {'pixel_values', 'label'}}
+
+# def transform_random_forest(batch: dict):
+#     """Transform image batches from a Dataset to """
 
 
-def get_dataset_with_transform(image_list: list[dict], processor=None) -> Dataset:
+def get_dataset_with_transform(image_list: list[dict],
+                               batch_transformer: Optional[Callable] = None,
+                               processor=None) -> Dataset:
     """Turn image_list into a dataset."""
     ds = get_dataset(image_list)
     if processor is None:
         processor = get_processor(CHECKPOINT_VIT_ONLINE)
+    if batch_transformer is None:
+        batch_transformer = transform_vit
     set_transforms(processor)
-    ds.set_transform(transform_ds_batch)
+    ds.set_transform(batch_transformer)
     return ds
 
 
-def show_ds_img(ds_dict: dict):
+def show_ds_img(ds_dict: dict) -> None:
     """Display the image stored as 'pixel_values' in a DS row."""
     pv = ds_dict['pixel_values']
-    img = ToPILImage(pv)
-    return img
+    img = None
+    if type(pv) is Tensor:
+        img = ToPILImage()(pv)
+    if type(img) is None:
+        log.critical("Cannot display image, unknown data type {type(pv)}")
+    ImageShow.register(ImageShow.DisplayViewer, 0)
+    ImageShow.show(img)
 
 
 # img = tensor_to_image(tensor)
