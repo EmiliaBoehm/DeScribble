@@ -158,6 +158,7 @@ def transform_random_forest(batch: dict):
     batch['pixel_values'] = np.asarray([convert_tensor_to_1d_array(px)
                                         for px in batch['pixel_values']])
     batch['label'] = np.asarray([[label] for label in batch['label']])
+    del batch['image']
     return batch
 
 
