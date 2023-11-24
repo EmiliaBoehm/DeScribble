@@ -1,4 +1,4 @@
-Datei Index,Lebensalter,Geschlecht ,Händigkeit,Bundesland / Land,Freitext,Potenzielle Bildprobleme,Vermerkt Herkunft
+Datei Index,Lebensalter,Geschlecht,Händigkeit,Bundesland / Land,Freitext,Potenzielle Bildprobleme,Vermerkt Herkunft
 1,31,Männlich,Rechts,Nordrhein-Westfalen,Der Herbst ist die beste Zeit um Pumpkin Spiced Latte zu trinken.,,E-Mail
 2,63,Weiblich,Rechts,Hessen,"Das Laub an den Bäumen ist bunt, nicht mehr lange, dann fallen die Blätter. ",,E-Mail
 3,37,Männlich,Rechts,Hessen,Wir fahren im Herbst mit dem roten Auto durch den Wald. ,,E-Mail
@@ -125,8 +125,8 @@ Datei Index,Lebensalter,Geschlecht ,Händigkeit,Bundesland / Land,Freitext,Poten
 124,17,Weiblich,Rechts,Berlin,,,
 125,14,Männlich,Rechts,Berlin,,,
 126,14,Weiblich,Rechts,Berlin,,,
-127,,,,,,,
-128,,,,,,,
+127,50,Männlich,Rechts,Rheinland-Pfalz,,,
+128,32,Weiblich,Rechts,Berlin (Ost),,,
 129,,,,,,,
 130,,,,,,,
 131,,,,,,,
