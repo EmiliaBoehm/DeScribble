@@ -137,8 +137,28 @@ def transform_vit(batch: dict):
     del batch['image']
     return batch
 
-# def transform_random_forest(batch: dict):
-#     """Transform image batches from a Dataset to """
+
+def convert_tensor_to_1d_array(t: Tensor) -> np.array:
+    """Convert tensor image to a 1-dimensional numpy array."""
+    r = np.asarray(ToPILImage()(t))
+    nx, ny, nrgb = r.shape
+    new_r = r.reshape(nx * ny * nrgb)
+    new_r = new_r / 255
+    return new_r
+
+
+def transform_random_forest(batch: dict):
+    """Transform image batches from a Dataset to """
+    if _transforms is None:
+        log.critical("_transforms pipeline undefined, cannot proceed")
+        sys.exit(1)
+    # First apply the same transformation as transform_vit()
+    batch['pixel_values'] = [_transforms(img.convert("RGB")) for img in batch['image']]
+    # Then convert the values to per-batch np arrays:
+    batch['pixel_values'] = np.asarray([convert_tensor_to_1d_array(px)
+                                        for px in batch['pixel_values']])
+    batch['label'] = np.asarray([[label] for label in batch['label']])
+    return batch
 
 
 def get_dataset_with_transform(image_list: list[dict],
