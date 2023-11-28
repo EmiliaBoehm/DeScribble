@@ -1,16 +1,30 @@
 """Train the Huggingface pretrained ViT Image Classifier, save its state and  predictions."""
+from typing_extensions import Annotated
+import typer
 import logging
 import sys
-import argparse
 from pathlib import Path
-import trainlib as lib
-from datafeed import CHECKPOINT_VIT_ONLINE
+import trainlib as lib     # type: ignore
+from datafeed import CHECKPOINT_VIT_ONLINE # type: ignore
 
+logging.basicConfig()
 log = logging.getLogger("vit_train")
 log.setLevel(logging.INFO)
 
 
-def main(save_dir: Path, batch_size: int, epochs: int) -> None:
+def main(save_dir: Annotated[Path,
+                             typer.Argument(help="Name of the directory to store the trained model in")],
+         batch_size: Annotated[int,
+                               typer.Argument(help="Batch size (e.g. 16, 32) for training")],
+         epochs: Annotated[int,
+                           typer.Argument(help="Number of epochs")],
+         verbose: Annotated[bool, typer.Option("--verbose", "-v",
+                                               help="Be a bit more verbose about what we are doing.")] = True) -> None:
+    """Load a pretrained ViT Transformer and train it with the segments defined in params.yaml.
+    After training, store the model in SAVE_DIR, which is also used for storing the local checkpoints.
+    Also save the training state, metrics and the predictions on the validation data set."""
+    logging.getLogger().setLevel(logging.INFO if verbose else logging.WARNING)
+
     if save_dir.exists():
         log.critical(f"Directory {save_dir} already exists, training would overwrite an existing checkpoint.")
         log.critical("Delete the directory manually if you want to use it for a new training round.")
@@ -39,20 +53,5 @@ def main(save_dir: Path, batch_size: int, epochs: int) -> None:
     log.info(f"All done! Best model is stored in {save_dir}/model")
 
 
-def get_ArgumentParser() -> argparse.ArgumentParser:
-    """Return an ArgumentParser object for this script."""
-    parser = argparse.ArgumentParser(
-        description="Load a ViTModel from huggingface, train it and store the results."
-    )
-    parser.add_argument("save_dir", type=Path,
-                        help="Name of the directory to store the trained model in")
-    parser.add_argument("batch_size", type=int,
-                        help="Batch size (e.g. 16, 32) for training")
-    parser.add_argument("epochs", type=int,
-                        help="Number of epochs")
-    return parser
-
-
 if __name__ == '__main__':
-    args = get_ArgumentParser().parse_args()
-    main(args.save_dir, args.batch_size, args.epochs)
+    typer.run(main)
