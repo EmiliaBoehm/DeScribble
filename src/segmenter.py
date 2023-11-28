@@ -15,9 +15,10 @@ from skimage.measure import label, regionprops
 from skimage.draw import rectangle_perimeter, rectangle, set_color
 import numpy as np
 from typing import TypeAlias, Union, Tuple, Callable, Any, Optional
-#import logger
+from typing_extensions import Annotated
+import typer
 import logging
-import config as cfg
+import config as cfg  # type: ignore
 import math
 
 ImageArray: TypeAlias = np.ndarray
@@ -30,7 +31,8 @@ X_MIN = 1
 Y_MAX = 2
 X_MAX = 3
 
-#global log
+
+logging.basicConfig()
 log = logging.getLogger(__name__)
 
 # -----------------------------------------------------------
@@ -640,7 +642,8 @@ class Pipeline:
     def pump_boxes(self,
                    src_path: Optional[PathOrStr] = None,
                    dest_path: Optional[PathOrStr] = None,
-                   use_file: Union[None, PathOrStr, list[PathOrStr]] = None) -> None:
+                   use_file: Union[None, PathOrStr, list[PathOrStr]] = None,
+                   dry_run: bool = False) -> None:
         """
         Read all images in the path stored in the config file, find boxes,
         and write the boxes to the corresponding subdirectory also defined in
@@ -665,7 +668,7 @@ class Pipeline:
 
         # - check src_path:
         src_path = cfg.assert_path(src_path).resolve()
-        if not src_path.is_dir():
+        if not src_path.is_dir():    # type: ignore
             log.fatal(f"Source path {src_path} must be a directory")
             sys.exit(1)
 
@@ -679,15 +682,14 @@ class Pipeline:
             dest_path.mkdir(parents=True)
 
         # Define source files
-        # (this should be generator, ideally)
         files = []
-        if use_file is None:
-            for suffix in ['jpg', 'jpeg', 'png']:
-                files.extend([file for file in Path(src_path).glob(f"*.{suffix}")])
-        else:
+        if use_file:
             use_file = use_file if isinstance(use_file, list) else [use_file]
             for file in use_file:
-                files.append(src_path / Path(file))
+                files.append(src_path / Path(file))  # type: ignore
+        else:
+            for suffix in ['jpg', 'jpeg', 'png']:
+                files.extend([file for file in Path(src_path).glob(f"*.{suffix}")]) # type: ignore
         # and go!
         count = 0
         n_total_boxes = 0
@@ -704,7 +706,8 @@ class Pipeline:
             stem = path.stem
             # TODO do some sanity check on stem
             dest = dest_path / stem
-            dest.mkdir(exist_ok=True)
+            if not dry_run:
+                dest.mkdir(exist_ok=True)
             # TEMP Delete files in target direcetory for debuging:
             # for del_file in dest.glob('*'):
             #     del_file.unlink()
@@ -712,10 +715,11 @@ class Pipeline:
             wseg = WordSegmenter(img)
             lseg = LineSegmenter(wseg.binary_img)
             bw_worker = ImageWorker(wseg.binary_img)
-            bw_worker.write_boxes(wseg.word_boxes, dest,
-                                  "word-{stem}-{i:03}.png", stem=stem)
-            bw_worker.write_boxes(lseg.line_boxes, dest,
-                                  "line-{stem}-{i:03}.png", stem=stem)
+            if not dry_run:
+                bw_worker.write_boxes(wseg.word_boxes, dest,
+                                      "word-{stem}-{i:03}.png", stem=stem)
+                bw_worker.write_boxes(lseg.line_boxes, dest,
+                                      "line-{stem}-{i:03}.png", stem=stem)
             # Print statistics
             n_words = len(wseg.word_boxes)
             n_lines = len(lseg.line_boxes)
@@ -730,53 +734,42 @@ class Pipeline:
             word_worker.draw_rectangles(wseg.word_boxes, (0, 255, 255))
             line_worker = ImageWorker(lseg.word_mask, invert=False)
             line_worker.draw_rectangles(lseg.line_boxes)
-            write_image(dest / "0_binary_img.png", wseg.binary_img)
-            write_image(dest / "0_original_img.png", img)
-            write_image(dest / "0_word_mask.png", word_worker.img)
-            write_image(dest / "0_line_mask.png", line_worker.img)
-            bw_worker.draw_rectangles(wseg.word_boxes, (0, 255, 0))
-            bw_worker.draw_rectangles(lseg.line_boxes)
-            write_image(dest / "0_bw_worker.png", bw_worker.img)
-        box_avg = round(n_total_boxes / count)
+            if not dry_run:
+                write_image(dest / "0_binary_img.png", wseg.binary_img)
+                write_image(dest / "0_original_img.png", img)
+                write_image(dest / "0_word_mask.png", word_worker.img)
+                write_image(dest / "0_line_mask.png", line_worker.img)
+                bw_worker.draw_rectangles(wseg.word_boxes, (0, 255, 0))
+                bw_worker.draw_rectangles(lseg.line_boxes)
+                write_image(dest / "0_bw_worker.png", bw_worker.img)
+        box_avg = round(n_total_boxes / count) if count else 0
         log.info(f"Segemented {count} files, found total {n_total_boxes} ({n_total_word_boxes, n_total_line_boxes}), avg {box_avg} per file")
 
 
-# -----------------------------------------------------------
-# Example use:
+def main(src: Annotated[Optional[Path],
+                        typer.Option(help="Source directory for the unsegemented images. If not given, use the path specified in params.yaml")] = None,
+         dest: Annotated[Optional[Path],
+                         typer.Option(help="Target directory for the segements.  If not given, use the path specified in params.yaml")] = None,
+         file: Annotated[Optional[list[Path]],
+                         typer.Option(help="Scan specific files instead of the whole image source directory")] = None,
+         dry_run: Annotated[bool, typer.Option("--dry-run",
+                                               help="Do not change files")] = False,
+         verbose: Annotated[bool, typer.Option("--verbose", "-v",
+                                               help="Be a bit more verbose about what we are doing.")] = True
+         ) -> None:
+    """
+    Segment the files in SRC, storing word and line segments in
+    separate directories in DEST. Alternatively, only convert the
+    files explicitly passed via `--file` (can be used several times).
+
+    If no paths are passed, use the paths stored in the file `params.yaml`
+    situated at the root directory of this project.
+    """
+    # TODO Refactor. We don't need a Pipeline object.
+    p = Pipeline()
+    logging.getLogger().setLevel(logging.INFO if verbose else logging.WARNING)
+    p.pump_boxes(src, dest, use_file=file, dry_run=dry_run)  # type: ignore
 
 
-TESTBILD_BW = '/home/jv/Bilder/022_bw.jpg'
-TESTBILD = '/home/jv/Bilder/022.jpg'
-
-
-def example_test():
-    img = read_image(TESTBILD)
-    wseg = WordSegmenter(img)
-    lseg = LineSegmenter(img)
-    # Draw lines on the mask!
-    wworker = ImageWorker(wseg.binary_img)
-    wworker.draw_rectangles(wseg.word_boxes)
-    lworker = ImageWorker(lseg.binary_img)
-    lworker.draw_rectangles(lseg.line_boxes)
-    wworker.show()
-    lworker.show()
-
-
-def example_use():
-    """Example usage."""
-    input_img = Path(TESTBILD_BW)
-    output_path = Path('/home/jv/Bilder/splittest3/')
-    img = read_image(input_img)
-    seg = Segmenter(img)
-
-    worker = ImageWorker(img)
-    worker.write_boxes(seg.word_boxes, output_path, "word-{i:03}.png")
-    worker.write_boxes(seg.line_boxes, output_path, "line-{i:03}.png")
-
-    worker = ImageWorker(img)
-    worker.draw_rectangles(seg.word_boxes)
-    worker.write(output_path / "original_with_word_boxes.png")
-    worker = ImageWorker(img)
-    worker.draw_boxes(seg.word_boxes)
-    worker.draw_rectangles(seg.line_boxes)
-    worker.write(output_path / "original_with_line_boxes.png")
+if __name__ == "__main__":
+    typer.run(main)
